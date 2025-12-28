@@ -152,6 +152,19 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			return err
 		}
 
+		if !wasPaste && strings.TrimSpace(rawInput) == "/paste" {
+			block, err := readPasteBlock(line)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			if strings.TrimSpace(block) == "" {
+				continue
+			}
+			rawInput = block
+			wasPaste = true
+		}
+
 		if wasPaste {
 			printPastePreview(rawInput)
 		}
@@ -837,6 +850,26 @@ func readUserInput(line *liner.State, prompt string) (string, bool, error) {
 		return strings.Join(lines, "\n"), true, nil
 	}
 	return input, false, nil
+}
+
+func readPasteBlock(line *liner.State) (string, error) {
+	fmt.Println("Paste mode: enter lines, finish with a single '.' on its own line.")
+	lines := make([]string, 0, 8)
+	for {
+		next, err := line.Prompt("... ")
+		if err != nil {
+			if err == liner.ErrPromptAborted {
+				fmt.Println()
+				return "", nil
+			}
+			return "", err
+		}
+		if strings.TrimSpace(next) == "." {
+			break
+		}
+		lines = append(lines, next)
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 func trimContinuation(input string) (string, bool) {
