@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/peterh/liner"
 	"github.com/unixsysdev/serena-cli-go/internal/config"
 	"github.com/unixsysdev/serena-cli-go/internal/orchestrator"
 )
@@ -120,43 +121,57 @@ func main() {
 }
 
 func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.Config, ui *ConsoleUI, sessions *SessionState) error {
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	line := liner.NewLiner()
+	line.SetCtrlCAborts(true)
+	defer func() {
+		_ = line.Close()
+	}()
 
 	fmt.Fprintf(os.Stderr, "Model: %s (use /model to switch)\n", orch.Model())
 	fmt.Fprintf(os.Stderr, "Session: %s (use /session to manage)\n", sessions.Current())
-	fmt.Print(promptString(cfg, orch, sessions))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			fmt.Print(promptString(cfg, orch, sessions))
+	for {
+		prompt := promptString(cfg, orch, sessions)
+		input, err := line.Prompt(prompt)
+		if err != nil {
+			if err == liner.ErrPromptAborted {
+				fmt.Println()
+				continue
+			}
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		text := strings.TrimSpace(input)
+		if text == "" {
 			continue
 		}
-		if strings.HasPrefix(line, "@context") {
-			if err := handleContextImport(line, orch, sessions); err != nil {
+		line.AppendHistory(text)
+
+		if strings.HasPrefix(text, "@context") {
+			if err := handleContextImport(text, orch, sessions); err != nil {
 				fmt.Println(err)
 			} else {
 				fmt.Println("Context file added.")
 			}
-			fmt.Print(promptString(cfg, orch, sessions))
 			continue
 		}
-		if strings.HasPrefix(line, "/") {
-			exit, err := handleCommand(ctx, line, orch, cfg, ui, sessions)
+		if strings.HasPrefix(text, "/") {
+			exit, err := handleCommand(ctx, text, orch, cfg, ui, sessions)
 			if err != nil {
 				fmt.Println(err)
 			}
 			if exit {
 				return nil
 			}
-			fmt.Print(promptString(cfg, orch, sessions))
 			continue
 		}
-		if line == "exit" || line == "quit" {
+		if text == "exit" || text == "quit" {
 			return nil
 		}
 
-		resp, err := orch.Chat(ctx, line)
+		resp, err := orch.Chat(ctx, text)
 		ui.StopSpinner()
 		if err := maybeAutoCompact(ctx, orch, sessions); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -167,14 +182,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 		}
 
 		fmt.Println(resp)
-		fmt.Print(promptString(cfg, orch, sessions))
 	}
-
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func handleCommand(ctx context.Context, line string, orch *orchestrator.Orchestrator, cfg *config.Config, ui *ConsoleUI, sessions *SessionState) (bool, error) {
@@ -206,6 +214,9 @@ func handleCommand(ctx context.Context, line string, orch *orchestrator.Orchestr
 		return false, handleSessionCommand(args, orch, sessions, ui)
 	case "compact":
 		return false, compactSession(ctx, orch, sessions)
+	case "clear":
+		clearScreen()
+		return false, nil
 	case "config":
 		return false, printConfig(cfg)
 	case "reset":
@@ -278,6 +289,7 @@ func printHelp() {
 	fmt.Println("  /trace [n]      Show recent tool calls")
 	fmt.Println("  /session ...    Manage sessions (list/new/switch/delete)")
 	fmt.Println("  /compact        Compact older context into a summary")
+	fmt.Println("  /clear          Clear the screen")
 	fmt.Println("  /config         Show resolved config (API key masked)")
 	fmt.Println("  /reset          Clear the conversation context")
 	fmt.Println("  /exit, /quit    Exit the CLI")
@@ -653,6 +665,10 @@ func formatDuration(d time.Duration) string {
 		return d.Round(time.Millisecond).String()
 	}
 	return d.Round(10 * time.Millisecond).String()
+}
+
+func clearScreen() {
+	fmt.Print("\033[2J\033[H")
 }
 
 func promptString(cfg *config.Config, orch *orchestrator.Orchestrator, sessions *SessionState) string {

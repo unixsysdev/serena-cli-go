@@ -401,7 +401,7 @@ func wrapUserTask(userMsg string) string {
 	}
 
 	return fmt.Sprintf(
-		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- Use tools only when necessary.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
+		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- For any file system or project action, call tools instead of just describing the action.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
 		trimmed,
 	)
 }
@@ -423,7 +423,29 @@ func (o *Orchestrator) selectToolChoice(userMsg string) any {
 		}
 	}
 
-	if strings.Contains(lower, "readme") || strings.Contains(lower, "read file") || strings.Contains(lower, "read the file") {
+	if readMemoriesPattern.MatchString(lower) || listMemoriesPattern.MatchString(lower) {
+		if o.hasTool("list_memories") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "list_memories",
+				},
+			}
+		}
+	}
+
+	if readMemoryPattern.MatchString(lower) {
+		if o.hasTool("read_memory") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "read_memory",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "readme") || strings.Contains(lower, "read file") || strings.Contains(lower, "read the file") || strings.Contains(lower, "read the readme") {
 		if o.hasTool("read_file") {
 			return openai.ToolChoice{
 				Type: openai.ToolTypeFunction,
@@ -467,7 +489,7 @@ func (o *Orchestrator) selectToolChoice(userMsg string) any {
 		}
 	}
 
-	if strings.Contains(lower, "create a script") || strings.Contains(lower, "create script") || strings.Contains(lower, "create a file") || strings.Contains(lower, "write a file") {
+	if createScriptPattern.MatchString(lower) || strings.Contains(lower, "create a file") || strings.Contains(lower, "write a file") {
 		if o.hasTool("create_text_file") {
 			return openai.ToolChoice{
 				Type: openai.ToolTypeFunction,
@@ -490,7 +512,13 @@ func (o *Orchestrator) hasTool(name string) bool {
 	return false
 }
 
-var thinkTagPattern = regexp.MustCompile(`(?s)<think>.*?</think>`)
+var (
+	thinkTagPattern     = regexp.MustCompile(`(?s)<think>.*?</think>`)
+	createScriptPattern = regexp.MustCompile(`(?i)\b(create|write)\b.*\bscript\b`)
+	readMemoriesPattern = regexp.MustCompile(`(?i)\bread\b.*\bmemories\b|\bmemories\b.*\bread\b`)
+	readMemoryPattern   = regexp.MustCompile(`(?i)\bread\b.*\bmemory\b`)
+	listMemoriesPattern = regexp.MustCompile(`(?i)\blist\b.*\bmemories\b|\bmemories\b.*\blist\b`)
+)
 
 func stripThinkTags(content string) string {
 	if content == "" {
