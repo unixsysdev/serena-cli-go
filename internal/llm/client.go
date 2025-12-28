@@ -81,6 +81,9 @@ func (c *Client) ChatWithModel(ctx context.Context, model string, messages []ope
 		Tools:       tools,
 		Temperature: 0.7,
 	}
+	if len(tools) > 0 {
+		req.ToolChoice = "auto"
+	}
 
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
