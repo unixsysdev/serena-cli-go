@@ -19,13 +19,15 @@ import (
 
 const (
 	defaultSessionName = "default"
+	maxSummaryInput    = 20000
 )
 
 type SessionState struct {
-	store   *session.Store
-	data    *session.SessionData
-	name    string
-	baseDir string
+	store         *session.Store
+	data          *session.SessionData
+	name          string
+	baseDir       string
+	loadedSummary bool
 }
 
 func initSessionState(cfg *config.Config, orch *orchestrator.Orchestrator) (*SessionState, error) {
@@ -47,7 +49,9 @@ func initSessionState(cfg *config.Config, orch *orchestrator.Orchestrator) (*Ses
 	if err := state.loadOrCreate(defaultSessionName, orch); err != nil {
 		return nil, err
 	}
-
+	if err := state.maybeShowSessionSummary(context.Background(), orch); err != nil {
+		return nil, err
+	}
 	registerSessionTools(orch, state)
 	return state, nil
 }
@@ -87,6 +91,7 @@ func (s *SessionState) loadOrCreate(name string, orch *orchestrator.Orchestrator
 
 	s.name = sessionName
 	s.data = data
+	s.loadedSummary = false
 
 	if s.data.Model != "" && s.data.Model != orch.Model() {
 		orch.SetModel(s.data.Model)
@@ -105,7 +110,10 @@ func (s *SessionState) Switch(name string, orch *orchestrator.Orchestrator) erro
 	if sessionName == s.name {
 		return nil
 	}
-	return s.loadOrCreate(sessionName, orch)
+	if err := s.loadOrCreate(sessionName, orch); err != nil {
+		return err
+	}
+	return s.maybeShowSessionSummary(context.Background(), orch)
 }
 
 func (s *SessionState) Delete(name string) error {
@@ -166,6 +174,60 @@ func (s *SessionState) WriteSummary(content string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(content), 0o600)
+}
+
+func (s *SessionState) ReadSummary() (string, error) {
+	path := s.SummaryPath()
+	if path == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func (s *SessionState) maybeShowSessionSummary(ctx context.Context, orch *orchestrator.Orchestrator) error {
+	if s.loadedSummary {
+		return nil
+	}
+	s.loadedSummary = true
+
+	messages := orch.Messages()
+	if len(messages) <= 1 {
+		return nil
+	}
+
+	summary, err := s.ReadSummary()
+	if err != nil {
+		return err
+	}
+	if summary == "" {
+		transcript := buildTranscript(messages[1:])
+		if transcript == "" {
+			return nil
+		}
+		transcript = truncateSummaryInput(transcript)
+		summary, err = orch.Summarize(ctx, transcript)
+		if err != nil {
+			return err
+		}
+		if err := s.WriteSummary(summary); err != nil {
+			return err
+		}
+	}
+
+	if summary != "" {
+		fmt.Println("Session summary:")
+		fmt.Println(summary)
+		fmt.Println()
+	}
+
+	return nil
 }
 
 func (s *SessionState) SearchArchive(query string, maxResults int) (string, error) {
@@ -360,6 +422,15 @@ func buildTranscript(messages []openai.ChatCompletionMessage) string {
 		b.WriteString("\n")
 	}
 	return strings.TrimSpace(b.String())
+}
+
+func truncateSummaryInput(text string) string {
+	if len(text) <= maxSummaryInput {
+		return text
+	}
+	head := text[:maxSummaryInput/2]
+	tail := text[len(text)-(maxSummaryInput/2):]
+	return head + "\n...\n" + tail
 }
 
 func registerSessionTools(orch *orchestrator.Orchestrator, sessions *SessionState) {

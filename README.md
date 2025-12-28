@@ -94,6 +94,7 @@ REPL commands:
 ```
 
 Sessions are stored under `~/.serena-cli/sessions/<project-name>` so you can switch contexts.
+On startup, the CLI prints a short summary of the session history (generated with the compaction model).
 
 ### Built-in models
 
