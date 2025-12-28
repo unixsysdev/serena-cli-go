@@ -3,6 +3,7 @@ package MCP
 import (
 	"context"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 type Client struct {
 	client       *client.Client
 	Instructions string // Server instructions from initialization
+	stdio        *transport.Stdio
 }
 
 // New creates a new MCP client
@@ -52,6 +54,7 @@ func New(cfg *config.SerenaConfig) (*Client, error) {
 
 	return &Client{
 		client: mcpClient,
+		stdio:  stdio,
 	}, nil
 }
 
@@ -63,6 +66,7 @@ func (c *Client) Connect() error {
 	if err := c.client.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start MCP client: %w", err)
 	}
+	c.drainStderr()
 
 	// Initialize the MCP session
 	initRequest := mcp.InitializeRequest{
@@ -90,6 +94,19 @@ func (c *Client) Connect() error {
 // Close closes the connection to the MCP server
 func (c *Client) Close() error {
 	return c.client.Close()
+}
+
+func (c *Client) drainStderr() {
+	if c.stdio == nil {
+		return
+	}
+	reader := c.stdio.Stderr()
+	if reader == nil {
+		return
+	}
+	go func() {
+		_, _ = io.Copy(io.Discard, reader)
+	}()
 }
 
 // ListTools lists all available tools from the MCP server
