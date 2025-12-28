@@ -1,0 +1,32 @@
+# Serena CLI sample configuration.
+# Save as serena-cli.yaml in your project or config dir (~/.serena-cli or ~/.config/serena-cli).
+
+glm:
+  # API key for Chutes (or set LLM_API_KEY env var)
+  api_key: "your-api-key"
+
+  # Base URL for Chutes API
+  base_url: "https://llm.chutes.ai/v1"
+
+  # Model to use (can also switch at runtime with /model)
+  model: "zai-org/GLM-4.7-TEE"
+
+serena:
+  # Project path (use "." for current directory)
+  project_path: "."
+
+  # Context mode: claude-code, ide, desktop-app, etc.
+  context: "claude-code"
+
+  # Command to start Serena MCP (default: uvx)
+  command: "uvx"
+
+  # Extra arguments for the MCP server
+  args:
+    - "--from"
+    - "git+https://github.com/oraios/serena"
+    - "serena"
+    - "start-mcp-server"
+
+# Debug mode (prints verbose logs)
+debug: false

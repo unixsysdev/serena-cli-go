@@ -17,7 +17,7 @@ go install github.com/unixsysdev/serena-cli-go/cmd/serena@latest
 
 ## Configuration
 
-Create a `serena-cli.yaml` file (see `serena-cli.yaml` in this repo for a full sample). Config is loaded from:
+Create a `serena-cli.yaml` file (copy `serena-cli.yaml.example` from this repo). Config is loaded from:
 
 - `./serena-cli.yaml`
 - `~/.serena-cli/serena-cli.yaml`

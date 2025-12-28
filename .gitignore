@@ -1,13 +1,11 @@
 # Build
-serena
+/serena
 
 # Test
 *.test
 
 # Config
 serena-cli.yaml
-*.yaml
-!*.yaml.example
 
 # IDE
 .idea/
