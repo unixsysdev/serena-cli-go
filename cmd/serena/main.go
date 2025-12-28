@@ -111,7 +111,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Println(resp)
+		printInteraction(prompt, resp, orch.Model())
 		return
 	}
 
@@ -182,7 +182,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			return err
 		}
 
-		fmt.Println(resp)
+		printInteraction(text, resp, orch.Model())
 	}
 }
 
@@ -758,4 +758,36 @@ func expandHome(path string) string {
 		}
 	}
 	return path
+}
+
+func printInteraction(task string, response string, model string) {
+	task = strings.TrimSpace(task)
+	response = strings.TrimSpace(response)
+
+	fmt.Println()
+	if task != "" {
+		fmt.Println(formatDivider("TASK"))
+		fmt.Println(task)
+	}
+	if response != "" {
+		label := fmt.Sprintf("MODEL RESPONSE (%s)", shortModelName(model))
+		fmt.Println(formatDivider(label))
+		fmt.Println(response)
+	}
+	fmt.Println(strings.Repeat("-", 60))
+}
+
+func formatDivider(label string) string {
+	const width = 60
+	if label == "" {
+		return strings.Repeat("-", width)
+	}
+	title := " " + label + " "
+	if len(title) >= width {
+		return title
+	}
+	padding := width - len(title)
+	left := padding / 2
+	right := padding - left
+	return strings.Repeat("-", left) + title + strings.Repeat("-", right)
 }
