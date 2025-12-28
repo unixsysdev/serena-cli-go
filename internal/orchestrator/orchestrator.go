@@ -465,6 +465,14 @@ func (o *Orchestrator) selectToolChoice(userMsg string) any {
 	}
 
 	lower := strings.ToLower(userMsg)
+	if name := o.explicitToolName(lower); name != "" {
+		return openai.ToolChoice{
+			Type: openai.ToolTypeFunction,
+			Function: openai.ToolFunction{
+				Name: name,
+			},
+		}
+	}
 	if strings.Contains(lower, "activate project") || strings.Contains(lower, "activate_project") {
 		if o.hasTool("activate_project") {
 			return openai.ToolChoice{
@@ -563,6 +571,22 @@ func (o *Orchestrator) hasTool(name string) bool {
 		}
 	}
 	return false
+}
+
+func (o *Orchestrator) explicitToolName(message string) string {
+	for _, tool := range o.tools {
+		if tool.Function == nil {
+			continue
+		}
+		name := strings.ToLower(tool.Function.Name)
+		if name == "" {
+			continue
+		}
+		if strings.Contains(message, name) {
+			return tool.Function.Name
+		}
+	}
+	return ""
 }
 
 var (
