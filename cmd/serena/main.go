@@ -212,6 +212,8 @@ func handleCommand(ctx context.Context, line string, orch *orchestrator.Orchestr
 		return false, printContext(orch)
 	case "trace":
 		return false, ui.PrintTrace(args)
+	case "summary":
+		return false, handleSummaryCommand(ctx, orch, sessions, args)
 	case "session":
 		return false, handleSessionCommand(args, orch, sessions, ui)
 	case "compact":
@@ -289,6 +291,7 @@ func printHelp() {
 	fmt.Println("  /status         Show current status")
 	fmt.Println("  /context        Show context usage")
 	fmt.Println("  /trace [n]      Show recent tool calls")
+	fmt.Println("  /summary        Show or refresh the session summary")
 	fmt.Println("  /session ...    Manage sessions (list/new/switch/delete)")
 	fmt.Println("  /compact        Compact older context into a summary")
 	fmt.Println("  /clear          Clear the screen")
@@ -731,6 +734,29 @@ func formatBanner(label string, value string, note string) string {
 		)
 	}
 	return fmt.Sprintf("%s: %s%s\n", label, value, note)
+}
+
+func handleSummaryCommand(ctx context.Context, orch *orchestrator.Orchestrator, sessions *SessionState, args []string) error {
+	refresh := false
+	if len(args) > 0 {
+		arg := strings.ToLower(strings.TrimSpace(args[0]))
+		refresh = arg == "refresh" || arg == "regen" || arg == "rebuild"
+		if !refresh && arg != "" {
+			return fmt.Errorf("usage: /summary [refresh]")
+		}
+	}
+
+	summary, err := sessions.Summary(ctx, orch, refresh)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(summary) == "" {
+		fmt.Println("No summary available yet.")
+		return nil
+	}
+	fmt.Println("Session summary:")
+	fmt.Println(summary)
+	return nil
 }
 
 func handleContextImport(line string, orch *orchestrator.Orchestrator, sessions *SessionState) error {

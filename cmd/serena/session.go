@@ -230,6 +230,37 @@ func (s *SessionState) maybeShowSessionSummary(ctx context.Context, orch *orches
 	return nil
 }
 
+func (s *SessionState) Summary(ctx context.Context, orch *orchestrator.Orchestrator, refresh bool) (string, error) {
+	messages := orch.Messages()
+	if len(messages) <= 1 {
+		return "", nil
+	}
+
+	if !refresh {
+		summary, err := s.ReadSummary()
+		if err != nil {
+			return "", err
+		}
+		if summary != "" {
+			return summary, nil
+		}
+	}
+
+	transcript := buildTranscript(messages[1:])
+	if transcript == "" {
+		return "", nil
+	}
+	transcript = truncateSummaryInput(transcript)
+	summary, err := orch.Summarize(ctx, transcript)
+	if err != nil {
+		return "", err
+	}
+	if err := s.WriteSummary(summary); err != nil {
+		return "", err
+	}
+	return summary, nil
+}
+
 func (s *SessionState) SearchArchive(query string, maxResults int) (string, error) {
 	path := s.ArchivePath()
 	if path == "" {

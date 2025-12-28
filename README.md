@@ -87,6 +87,7 @@ REPL commands:
 /status
 /context
 /trace 5
+/summary
 /session list
 /session new experiment
 /session switch experiment
