@@ -183,7 +183,11 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 	}
 
 	// Call LLM with tools
-	content, toolCalls, err := o.llm.Chat(ctx, o.messages, o.tools)
+	llmCtx, cancel := o.llmCallContext(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
+	content, toolCalls, err := o.llm.Chat(llmCtx, o.messages, o.tools)
 	if err != nil {
 		return "", fmt.Errorf("LLM chat failed: %w", err)
 	}
@@ -243,7 +247,11 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 		o.emitStatus(fmt.Sprintf("thinking (model=%s)", o.llm.Model()))
 
 		// Call LLM again with tool results
-		content, toolCalls, err = o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, "auto")
+		llmCtx, cancel := o.llmCallContext(ctx)
+		if cancel != nil {
+			defer cancel()
+		}
+		content, toolCalls, err = o.llm.ChatWithOptions(llmCtx, o.llm.Model(), o.messages, o.tools, "auto")
 		if err != nil {
 			return "", fmt.Errorf("LLM chat with tool results failed: %w", err)
 		}
@@ -371,7 +379,11 @@ func (o *Orchestrator) Summarize(ctx context.Context, text string) (string, erro
 	}
 
 	model := o.config.LLM.CompactionModel
-	content, _, err := o.llm.ChatWithModel(ctx, model, messages, nil)
+	llmCtx, cancel := o.llmCallContext(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
+	content, _, err := o.llm.ChatWithModel(llmCtx, model, messages, nil)
 	if err != nil {
 		return "", err
 	}
@@ -556,6 +568,15 @@ func formatToolResult(result *mcp.CallToolResult) string {
 
 func (o *Orchestrator) toolCallContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	timeoutSeconds := o.config.Serena.ToolTimeoutSeconds
+	if timeoutSeconds <= 0 {
+		return ctx, nil
+	}
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	return context.WithTimeout(ctx, timeout)
+}
+
+func (o *Orchestrator) llmCallContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeoutSeconds := o.config.LLM.TimeoutSeconds
 	if timeoutSeconds <= 0 {
 		return ctx, nil
 	}

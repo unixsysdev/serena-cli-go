@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/unixsysdev/serena-cli-go/internal/config"
@@ -27,6 +28,9 @@ func New(cfg *config.LLMConfig) (*Client, error) {
 			RoundTripper: http.DefaultTransport,
 			UserAgent:    "kilo-code/0.1.0",
 		},
+	}
+	if cfg.TimeoutSeconds > 0 {
+		httpClient.Timeout = time.Duration(cfg.TimeoutSeconds) * time.Second
 	}
 
 	// Create custom config with base URL and custom HTTP client.

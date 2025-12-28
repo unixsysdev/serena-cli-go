@@ -21,6 +21,7 @@ type LLMConfig struct {
 	BaseURL         string `mapstructure:"base_url"`
 	Model           string `mapstructure:"model"`
 	CompactionModel string `mapstructure:"compaction_model"`
+	TimeoutSeconds  int    `mapstructure:"timeout_seconds"`
 }
 
 // SerenaConfig holds Serena MCP configuration
@@ -75,6 +76,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.BindEnv("llm.base_url", "LLM_BASE_URL", "CHUTES_BASE_URL")
 	v.BindEnv("llm.model", "LLM_MODEL", "CHUTES_MODEL")
 	v.BindEnv("llm.compaction_model", "LLM_COMPACTION_MODEL", "CHUTES_COMPACTION_MODEL")
+	v.BindEnv("llm.timeout_seconds", "LLM_TIMEOUT_SECONDS", "CHUTES_TIMEOUT_SECONDS")
 	v.BindEnv("serena.tool_timeout_seconds", "SERENA_TOOL_TIMEOUT_SECONDS")
 
 	// Parse config.
@@ -98,6 +100,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.base_url", "https://llm.chutes.ai/v1")
 	v.SetDefault("llm.model", "zai-org/GLM-4.7-TEE")
 	v.SetDefault("llm.compaction_model", "Qwen/Qwen3-VL-235B-A22B-Instruct")
+	v.SetDefault("llm.timeout_seconds", 300)
 	v.SetDefault("serena.context", "")
 	v.SetDefault("serena.command", "uvx")
 	v.SetDefault("serena.args", []string{

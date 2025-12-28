@@ -31,6 +31,7 @@ llm:
   base_url: "https://llm.chutes.ai/v1"
   model: "zai-org/GLM-4.7-TEE"
   compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
+  timeout_seconds: 300
 
 serena:
   command: "uvx"
@@ -52,6 +53,7 @@ export LLM_API_KEY="your-api-key"
 export LLM_BASE_URL="https://llm.chutes.ai/v1"
 export LLM_MODEL="zai-org/GLM-4.7-TEE"
 export LLM_COMPACTION_MODEL="Qwen/Qwen3-VL-235B-A22B-Instruct"
+export LLM_TIMEOUT_SECONDS="300"
 export SERENA_TOOL_TIMEOUT_SECONDS="300"
 ```
 

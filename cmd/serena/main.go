@@ -376,6 +376,7 @@ func printConfig(cfg *config.Config) error {
 			"base_url":         cfg.LLM.BaseURL,
 			"model":            cfg.LLM.Model,
 			"compaction_model": cfg.LLM.CompactionModel,
+			"timeout_seconds":  strconv.Itoa(cfg.LLM.TimeoutSeconds),
 		},
 		"serena": map[string]interface{}{
 			"project_path":         cfg.Serena.ProjectPath,

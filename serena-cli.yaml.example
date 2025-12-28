@@ -14,6 +14,9 @@ llm:
   # Model to use for context compaction (/compact)
   compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
+  # Max time to wait for LLM responses before timing out (seconds)
+  timeout_seconds: 300
+
 serena:
   # Project path (optional; leave empty to manage projects in Serena itself)
   # project_path: ""
