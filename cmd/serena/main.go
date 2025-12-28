@@ -198,6 +198,11 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 				fmt.Println("Request cancelled.")
 				continue
 			}
+			if isLLMError(err) {
+				fmt.Println(err)
+				fmt.Println("Tip: the provider rejected this model. Try /model to switch.")
+				continue
+			}
 			return err
 		}
 
@@ -883,6 +888,14 @@ func expandHome(path string) string {
 		}
 	}
 	return path
+}
+
+func isLLMError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "chat completion failed")
 }
 
 type cancelTracker struct {
