@@ -25,11 +25,12 @@ type LLMConfig struct {
 
 // SerenaConfig holds Serena MCP configuration
 type SerenaConfig struct {
-	ProjectPath string            `mapstructure:"project_path"`
-	Context     string            `mapstructure:"context"`
-	Command     string            `mapstructure:"command"`
-	Args        []string          `mapstructure:"args"`
-	Env         map[string]string `mapstructure:"env"`
+	ProjectPath        string            `mapstructure:"project_path"`
+	Context            string            `mapstructure:"context"`
+	Command            string            `mapstructure:"command"`
+	Args               []string          `mapstructure:"args"`
+	Env                map[string]string `mapstructure:"env"`
+	ToolTimeoutSeconds int               `mapstructure:"tool_timeout_seconds"`
 }
 
 // LoadOptions controls configuration loading behavior.
@@ -74,6 +75,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.BindEnv("llm.base_url", "LLM_BASE_URL", "CHUTES_BASE_URL")
 	v.BindEnv("llm.model", "LLM_MODEL", "CHUTES_MODEL")
 	v.BindEnv("llm.compaction_model", "LLM_COMPACTION_MODEL", "CHUTES_COMPACTION_MODEL")
+	v.BindEnv("serena.tool_timeout_seconds", "SERENA_TOOL_TIMEOUT_SECONDS")
 
 	// Parse config.
 	var cfg Config
@@ -102,6 +104,7 @@ func setDefaults(v *viper.Viper) {
 		"--from", "git+https://github.com/oraios/serena",
 		"serena", "start-mcp-server",
 	})
+	v.SetDefault("serena.tool_timeout_seconds", 300)
 	v.SetDefault("debug", false)
 }
 

@@ -34,6 +34,7 @@ llm:
 
 serena:
   command: "uvx"
+  tool_timeout_seconds: 300
   args:
     - "--from"
     - "git+https://github.com/oraios/serena"
@@ -51,6 +52,7 @@ export LLM_API_KEY="your-api-key"
 export LLM_BASE_URL="https://llm.chutes.ai/v1"
 export LLM_MODEL="zai-org/GLM-4.7-TEE"
 export LLM_COMPACTION_MODEL="Qwen/Qwen3-VL-235B-A22B-Instruct"
+export SERENA_TOOL_TIMEOUT_SECONDS="300"
 ```
 
 ## Usage

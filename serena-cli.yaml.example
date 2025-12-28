@@ -21,6 +21,8 @@ serena:
   # Context mode (optional; leave empty to let Serena decide)
   # context: ""
 
+  # Max time to wait for tool results before timing out (seconds)
+  tool_timeout_seconds: 300
 
   # Command to start Serena MCP (default: uvx)
   command: "uvx"

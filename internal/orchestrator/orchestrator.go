@@ -3,9 +3,11 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sashabaranov/go-openai"
@@ -439,6 +441,10 @@ func stripThinkTags(content string) string {
 
 // executeToolCall executes a single tool call via MCP
 func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.ToolCall) (string, bool, error) {
+	callCtx, cancel := o.toolCallContext(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
 	// Parse tool arguments from JSON
 	var args map[string]interface{}
 	if toolCall.Function.Arguments != "" {
@@ -448,7 +454,7 @@ func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.Tool
 	}
 
 	if handler := o.localToolHandler(toolCall.Function.Name); handler != nil {
-		result, err := handler(ctx, args)
+		result, err := handler(callCtx, args)
 		if err != nil {
 			return fmt.Sprintf("Error: %s", err.Error()), true, nil
 		}
@@ -456,8 +462,11 @@ func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.Tool
 	}
 
 	// Call the tool via MCP
-	result, err := o.mcp.CallTool(ctx, toolCall.Function.Name, args)
+	result, err := o.mcp.CallTool(callCtx, toolCall.Function.Name, args)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return fmt.Sprintf("Error: tool %q timed out waiting for a response.", toolCall.Function.Name), true, nil
+		}
 		return "", false, fmt.Errorf("MCP tool call failed: %w", err)
 	}
 
@@ -543,4 +552,13 @@ func formatToolResult(result *mcp.CallToolResult) string {
 	}
 
 	return output
+}
+
+func (o *Orchestrator) toolCallContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeoutSeconds := o.config.Serena.ToolTimeoutSeconds
+	if timeoutSeconds <= 0 {
+		return ctx, nil
+	}
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	return context.WithTimeout(ctx, timeout)
 }

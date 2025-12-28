@@ -124,6 +124,7 @@ func main() {
 func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.Config, ui *ConsoleUI, sessions *SessionState) error {
 	line := liner.NewLiner()
 	line.SetCtrlCAborts(true)
+	line.SetMultiLineMode(true)
 	defer func() {
 		_ = line.Close()
 	}()
@@ -377,10 +378,11 @@ func printConfig(cfg *config.Config) error {
 			"compaction_model": cfg.LLM.CompactionModel,
 		},
 		"serena": map[string]interface{}{
-			"project_path": cfg.Serena.ProjectPath,
-			"context":      cfg.Serena.Context,
-			"command":      cfg.Serena.Command,
-			"args":         cfg.Serena.Args,
+			"project_path":         cfg.Serena.ProjectPath,
+			"context":              cfg.Serena.Context,
+			"command":              cfg.Serena.Command,
+			"args":                 cfg.Serena.Args,
+			"tool_timeout_seconds": cfg.Serena.ToolTimeoutSeconds,
 		},
 		"debug": cfg.Debug,
 	}
