@@ -32,6 +32,7 @@ const autoCompactThreshold = 0.9
 
 const (
 	colorReset  = "\x1b[0m"
+	colorBold   = "\x1b[1m"
 	colorRed    = "\x1b[31m"
 	colorGreen  = "\x1b[32m"
 	colorYellow = "\x1b[33m"
@@ -127,8 +128,8 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 		_ = line.Close()
 	}()
 
-	fmt.Fprintf(os.Stderr, "Model: %s (use /model to switch)\n", orch.Model())
-	fmt.Fprintf(os.Stderr, "Session: %s (use /session to manage)\n", sessions.Current())
+	fmt.Fprint(os.Stderr, formatBanner("Model", orch.Model(), "(use /model to switch)"))
+	fmt.Fprint(os.Stderr, formatBanner("Session", sessions.Current(), "(use /session to manage)"))
 	for {
 		prompt := promptString(cfg, orch, sessions)
 		input, err := line.Prompt(prompt)
@@ -691,6 +692,23 @@ func promptString(cfg *config.Config, orch *orchestrator.Orchestrator, sessions 
 		sessionName = "default"
 	}
 
+	if useColor() {
+		return fmt.Sprintf(
+			"%s%sserena%s:%s%s%s %s(%s)%s %s[%s]%s > ",
+			colorBold,
+			colorBlue,
+			colorReset,
+			colorCyan,
+			project,
+			colorReset,
+			colorGray,
+			sessionName,
+			colorReset,
+			colorYellow,
+			model,
+			colorReset,
+		)
+	}
 	return fmt.Sprintf("serena:%s (%s) [%s] > ", project, sessionName, model)
 }
 
@@ -703,6 +721,30 @@ func shortModelName(model string) string {
 		return trimmed[idx+1:]
 	}
 	return trimmed
+}
+
+func formatBanner(label string, value string, note string) string {
+	if strings.TrimSpace(value) == "" {
+		value = "-"
+	}
+	if note != "" {
+		note = " " + note
+	}
+	if useColor() {
+		return fmt.Sprintf(
+			"%s%s%s %s%s%s%s%s%s\n",
+			colorCyan,
+			label+":",
+			colorReset,
+			colorGreen,
+			value,
+			colorReset,
+			colorGray,
+			note,
+			colorReset,
+		)
+	}
+	return fmt.Sprintf("%s: %s%s\n", label, value, note)
 }
 
 func handleContextImport(line string, orch *orchestrator.Orchestrator, sessions *SessionState) error {
