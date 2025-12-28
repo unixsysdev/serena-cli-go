@@ -31,6 +31,9 @@ serena:
   enable_web_dashboard: false
   enable_gui_log_window: false
 
+  # Max tool answer size to avoid huge responses (characters)
+  max_tool_answer_chars: 20000
+
   # Command to start Serena MCP (default: uvx)
   command: "uvx"
 

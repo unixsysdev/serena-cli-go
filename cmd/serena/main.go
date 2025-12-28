@@ -45,6 +45,8 @@ const (
 )
 
 var availableModels = []string{
+	"Nemotron-3-Nano-30B-A3B-Q4_K_M.gguf",
+	"Nemotron-3-Nano-30B-A3B-IQ4_NL.gguf",
 	"deepseek-ai/DeepSeek-V3.2-Speciale-TEE",
 	"MiniMaxAI/MiniMax-M2.1-TEE",
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8-TEE",
@@ -425,6 +427,7 @@ func printConfig(cfg *config.Config) error {
 			"tool_timeout_seconds":  cfg.Serena.ToolTimeoutSeconds,
 			"enable_web_dashboard":  cfg.Serena.EnableWebDashboard,
 			"enable_gui_log_window": cfg.Serena.EnableGuiLogWindow,
+			"max_tool_answer_chars": cfg.Serena.MaxToolAnswerChars,
 		},
 		"debug": cfg.Debug,
 	}

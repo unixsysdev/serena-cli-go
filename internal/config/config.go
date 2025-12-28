@@ -34,6 +34,7 @@ type SerenaConfig struct {
 	ToolTimeoutSeconds int               `mapstructure:"tool_timeout_seconds"`
 	EnableWebDashboard bool              `mapstructure:"enable_web_dashboard"`
 	EnableGuiLogWindow bool              `mapstructure:"enable_gui_log_window"`
+	MaxToolAnswerChars int               `mapstructure:"max_tool_answer_chars"`
 }
 
 // LoadOptions controls configuration loading behavior.
@@ -82,6 +83,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.BindEnv("serena.tool_timeout_seconds", "SERENA_TOOL_TIMEOUT_SECONDS")
 	v.BindEnv("serena.enable_web_dashboard", "SERENA_ENABLE_WEB_DASHBOARD")
 	v.BindEnv("serena.enable_gui_log_window", "SERENA_ENABLE_GUI_LOG_WINDOW")
+	v.BindEnv("serena.max_tool_answer_chars", "SERENA_MAX_TOOL_ANSWER_CHARS")
 
 	// Parse config.
 	var cfg Config

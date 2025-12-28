@@ -38,6 +38,7 @@ serena:
   tool_timeout_seconds: 300
   enable_web_dashboard: false
   enable_gui_log_window: false
+  max_tool_answer_chars: 20000
   args:
     - "--from"
     - "git+https://github.com/oraios/serena"
@@ -59,6 +60,7 @@ export LLM_TIMEOUT_SECONDS="300"
 export SERENA_TOOL_TIMEOUT_SECONDS="300"
 export SERENA_ENABLE_WEB_DASHBOARD="false"
 export SERENA_ENABLE_GUI_LOG_WINDOW="false"
+export SERENA_MAX_TOOL_ANSWER_CHARS="20000"
 ```
 
 ## Usage

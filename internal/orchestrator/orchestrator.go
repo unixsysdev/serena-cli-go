@@ -475,6 +475,10 @@ func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.Tool
 			return "", false, fmt.Errorf("failed to parse tool arguments: %w", err)
 		}
 	}
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+	o.applyToolDefaults(toolCall.Function.Name, args)
 
 	if handler := o.localToolHandler(toolCall.Function.Name); handler != nil {
 		result, err := handler(callCtx, args)
@@ -505,6 +509,40 @@ func (o *Orchestrator) localToolHandler(name string) LocalToolHandler {
 		return nil
 	}
 	return o.local[name]
+}
+
+func (o *Orchestrator) applyToolDefaults(name string, args map[string]interface{}) {
+	if args == nil {
+		return
+	}
+	if o.config.Serena.MaxToolAnswerChars > 0 && o.toolSupportsParam(name, "max_answer_chars") {
+		if _, ok := args["max_answer_chars"]; !ok {
+			args["max_answer_chars"] = o.config.Serena.MaxToolAnswerChars
+		}
+	}
+}
+
+func (o *Orchestrator) toolSupportsParam(name string, param string) bool {
+	for _, tool := range o.tools {
+		if tool.Function == nil || tool.Function.Name != name {
+			continue
+		}
+		params, ok := tool.Function.Parameters.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		propsRaw, ok := params["properties"]
+		if !ok {
+			return false
+		}
+		props, ok := propsRaw.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		_, exists := props[param]
+		return exists
+	}
+	return false
 }
 
 // Close cleans up connections
