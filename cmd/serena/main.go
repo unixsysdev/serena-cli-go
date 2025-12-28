@@ -692,23 +692,6 @@ func promptString(cfg *config.Config, orch *orchestrator.Orchestrator, sessions 
 		sessionName = "default"
 	}
 
-	if useColor() {
-		return fmt.Sprintf(
-			"%s%sserena%s:%s%s%s %s(%s)%s %s[%s]%s > ",
-			colorBold,
-			colorBlue,
-			colorReset,
-			colorCyan,
-			project,
-			colorReset,
-			colorGray,
-			sessionName,
-			colorReset,
-			colorYellow,
-			model,
-			colorReset,
-		)
-	}
 	return fmt.Sprintf("serena:%s (%s) [%s] > ", project, sessionName, model)
 }
 
