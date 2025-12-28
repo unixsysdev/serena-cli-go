@@ -487,7 +487,10 @@ func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.Tool
 	// Call the tool via MCP
 	result, err := o.mcp.CallTool(callCtx, toolCall.Function.Name, args)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
+			return fmt.Sprintf("Error: tool %q cancelled by user.", toolCall.Function.Name), true, nil
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Sprintf("Error: tool %q timed out waiting for a response.", toolCall.Function.Name), true, nil
 		}
 		return "", false, fmt.Errorf("MCP tool call failed: %w", err)

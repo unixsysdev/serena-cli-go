@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/peterh/liner"
@@ -129,6 +132,10 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 		_ = line.Close()
 	}()
 
+	cancelTracker := newCancelTracker()
+	stopSignals := startCancelWatcher(cancelTracker, ui)
+	defer stopSignals()
+
 	fmt.Fprint(os.Stderr, formatBanner("Model", orch.Model(), "(use /model to switch)"))
 	fmt.Fprint(os.Stderr, formatBanner("Session", sessions.Current(), "(use /session to manage)"))
 	for {
@@ -177,13 +184,20 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			return nil
 		}
 
-		resp, err := orch.Chat(ctx, text)
+		requestCtx, cancel := context.WithCancel(ctx)
+		cancelTracker.Set(cancel)
+		resp, err := orch.Chat(requestCtx, text)
+		cancelTracker.Clear()
 		ui.StopSpinner()
 		if err := maybeAutoCompact(ctx, orch, sessions); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		_ = sessions.SaveFromOrch(orch)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("Request cancelled.")
+				continue
+			}
 			return err
 		}
 
@@ -857,6 +871,63 @@ func expandHome(path string) string {
 		}
 	}
 	return path
+}
+
+type cancelTracker struct {
+	mu     sync.Mutex
+	cancel context.CancelFunc
+}
+
+func newCancelTracker() *cancelTracker {
+	return &cancelTracker{}
+}
+
+func (c *cancelTracker) Set(cancel context.CancelFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cancel = cancel
+}
+
+func (c *cancelTracker) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cancel = nil
+}
+
+func (c *cancelTracker) Cancel() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cancel == nil {
+		return false
+	}
+	c.cancel()
+	c.cancel = nil
+	return true
+}
+
+func startCancelWatcher(tracker *cancelTracker, ui *ConsoleUI) func() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ch:
+				if tracker.Cancel() {
+					ui.StopSpinner()
+					fmt.Fprintln(os.Stderr, "\nCancel requested.")
+				}
+			}
+		}
+	}()
+
+	return func() {
+		close(done)
+		signal.Stop(ch)
+	}
 }
 
 func printInteraction(task string, response string, model string) {
