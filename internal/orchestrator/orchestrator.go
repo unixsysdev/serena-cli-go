@@ -515,10 +515,14 @@ func (o *Orchestrator) applyToolDefaults(name string, args map[string]interface{
 	if args == nil {
 		return
 	}
-	if o.config.Serena.MaxToolAnswerChars > 0 && o.toolSupportsParam(name, "max_answer_chars") {
-		if _, ok := args["max_answer_chars"]; !ok {
-			args["max_answer_chars"] = o.config.Serena.MaxToolAnswerChars
-		}
+	if o.config.Serena.MaxToolAnswerChars <= 0 {
+		return
+	}
+	if _, ok := args["max_answer_chars"]; ok {
+		return
+	}
+	if o.toolSupportsParam(name, "max_answer_chars") || toolAcceptsMaxAnswerChars(name) {
+		args["max_answer_chars"] = o.config.Serena.MaxToolAnswerChars
 	}
 }
 
@@ -543,6 +547,15 @@ func (o *Orchestrator) toolSupportsParam(name string, param string) bool {
 		return exists
 	}
 	return false
+}
+
+func toolAcceptsMaxAnswerChars(name string) bool {
+	switch name {
+	case "read_file", "list_dir", "execute_shell_command":
+		return true
+	default:
+		return false
+	}
 }
 
 // Close cleans up connections
