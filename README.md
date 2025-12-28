@@ -1,4 +1,4 @@
-# Serena CLI - Professional Go Edition
+# Serena CLI - Go Edition
 
 A lean coding assistant powered by GLM 4.7 and Serena MCP.
 
