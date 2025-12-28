@@ -133,7 +133,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 	fmt.Fprint(os.Stderr, formatBanner("Session", sessions.Current(), "(use /session to manage)"))
 	for {
 		prompt := promptString(cfg, orch, sessions)
-		input, err := line.Prompt(prompt)
+		rawInput, wasPaste, err := readUserInput(line, prompt)
 		if err != nil {
 			if err == liner.ErrPromptAborted {
 				fmt.Println()
@@ -145,13 +145,17 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			return err
 		}
 
-		text := strings.TrimSpace(input)
+		if wasPaste {
+			printPastePreview(rawInput)
+		}
+
+		text := strings.TrimSpace(rawInput)
 		if text == "" {
 			continue
 		}
-		line.AppendHistory(text)
+		line.AppendHistory(historyEntry(text, wasPaste))
 
-		if strings.HasPrefix(text, "@context") {
+		if !wasPaste && strings.HasPrefix(text, "@context") {
 			if err := handleContextImport(text, orch, sessions); err != nil {
 				fmt.Println(err)
 			} else {
@@ -159,7 +163,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			}
 			continue
 		}
-		if strings.HasPrefix(text, "/") {
+		if !wasPaste && strings.HasPrefix(text, "/") {
 			exit, err := handleCommand(ctx, text, orch, cfg, ui, sessions)
 			if err != nil {
 				fmt.Println(err)
@@ -169,7 +173,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			}
 			continue
 		}
-		if text == "exit" || text == "quit" {
+		if !wasPaste && (text == "exit" || text == "quit") {
 			return nil
 		}
 
@@ -788,6 +792,59 @@ func handleContextImport(line string, orch *orchestrator.Orchestrator, sessions 
 
 	orch.AddContext(path, string(data))
 	return sessions.SaveFromOrch(orch)
+}
+
+func readUserInput(line *liner.State, prompt string) (string, bool, error) {
+	input, err := line.Prompt(prompt)
+	if err != nil {
+		return "", false, err
+	}
+
+	lines := []string{input}
+	for stdinHasData() {
+		next, err := line.Prompt("")
+		if err != nil {
+			return "", false, err
+		}
+		lines = append(lines, next)
+	}
+
+	if len(lines) > 1 {
+		return strings.Join(lines, "\n"), true, nil
+	}
+	return input, false, nil
+}
+
+func printPastePreview(text string) {
+	trimmed := strings.TrimRight(text, "\n")
+	lines := strings.Split(trimmed, "\n")
+	if len(lines) == 0 {
+		return
+	}
+
+	const maxLines = 6
+	fmt.Printf("Pasted %d lines. Preview:\n", len(lines))
+	limit := len(lines)
+	if limit > maxLines {
+		limit = maxLines
+	}
+	for i := 0; i < limit; i++ {
+		fmt.Println(lines[i])
+	}
+	if len(lines) > maxLines {
+		fmt.Printf("... (%d more lines)\n", len(lines)-maxLines)
+	}
+}
+
+func historyEntry(text string, wasPaste bool) string {
+	if !wasPaste {
+		return text
+	}
+	entry := strings.ReplaceAll(text, "\n", "\\n")
+	if len(entry) > 400 {
+		return entry[:400] + "..."
+	}
+	return entry
 }
 
 func expandHome(path string) string {
