@@ -4,10 +4,10 @@ A lean coding assistant powered by GLM 4.7 and Serena MCP.
 
 ## Features
 
-- 🚀 Powered by GLM 4.7 for superior coding capabilities
+- 🚀 Powered by chutes.ai models 
 - 🛠️ Full Serena MCP tool integration
 - ⚡ Fast compiled Go binary
-- 🔧 Professional configuration management
+- 🔧  configuration management
 
 ## Installation
 
