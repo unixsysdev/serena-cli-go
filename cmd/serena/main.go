@@ -460,7 +460,7 @@ func (ui *ConsoleUI) handleStatus(message string) {
 	defer ui.mu.Unlock()
 
 	if isThinkingStatus(message) {
-		ui.startSpinnerLocked(normalizeStatus(message))
+		ui.startSpinnerLocked("thinking", normalizeStatus(message))
 		return
 	}
 
@@ -483,9 +483,11 @@ func (ui *ConsoleUI) handleToolStart(name string, args string) {
 
 	if args == "" {
 		fmt.Fprintf(ui.out, "%s %s\n", ui.colorize(colorBlue, "[tool]"), name)
+		ui.startSpinnerLocked("tool", name)
 		return
 	}
 	fmt.Fprintf(ui.out, "%s %s %s\n", ui.colorize(colorBlue, "[tool]"), name, ui.colorize(colorGray, args))
+	ui.startSpinnerLocked("tool", name)
 }
 
 func (ui *ConsoleUI) handleToolEnd(name string, result string, isError bool) {
@@ -582,7 +584,7 @@ func (ui *ConsoleUI) appendToolEvent(event ToolEvent) {
 	}
 }
 
-func (ui *ConsoleUI) startSpinnerLocked(message string) {
+func (ui *ConsoleUI) startSpinnerLocked(label string, message string) {
 	ui.stopSpinnerLocked()
 
 	if message == "" {
@@ -591,7 +593,7 @@ func (ui *ConsoleUI) startSpinnerLocked(message string) {
 	stop := make(chan struct{})
 	ui.spinnerStop = stop
 
-	go func(msg string, stopCh chan struct{}) {
+	go func(lbl string, msg string, stopCh chan struct{}) {
 		ticker := time.NewTicker(400 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -605,11 +607,11 @@ func (ui *ConsoleUI) startSpinnerLocked(message string) {
 				fmt.Fprint(ui.out, "\r")
 				return
 			case <-ticker.C:
-				fmt.Fprintf(ui.out, "\r%s %s%s", ui.colorize(colorYellow, "[thinking]"), msg, frames[frame%len(frames)])
+				fmt.Fprintf(ui.out, "\r%s %s%s", ui.spinnerLabel(lbl), msg, frames[frame%len(frames)])
 				frame++
 			}
 		}
-	}(message, stop)
+	}(label, message, stop)
 }
 
 func (ui *ConsoleUI) stopSpinnerLocked() {
@@ -640,6 +642,15 @@ func (ui *ConsoleUI) colorize(code string, text string) string {
 		return text
 	}
 	return code + text + colorReset
+}
+
+func (ui *ConsoleUI) spinnerLabel(label string) string {
+	switch strings.ToLower(strings.TrimSpace(label)) {
+	case "tool":
+		return ui.colorize(colorBlue, "[tool]")
+	default:
+		return ui.colorize(colorYellow, "[thinking]")
+	}
 }
 
 func useColor() bool {

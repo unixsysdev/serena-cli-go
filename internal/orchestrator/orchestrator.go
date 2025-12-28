@@ -180,6 +180,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 	if o.config.Debug {
 		fmt.Printf("\n=== Sending to LLM ===\nUser: %s\n=====================\n\n", userMsg)
+		fmt.Printf("LLM request start (messages=%d, tools=%d)\n", len(o.messages), len(o.tools))
 	}
 
 	// Call LLM with tools
@@ -199,6 +200,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 		for i, tc := range toolCalls {
 			fmt.Printf("  Tool %d: %s\n", i+1, tc.Function.Name)
 		}
+		fmt.Printf("LLM response received\n")
 	}
 
 	// Add assistant response
@@ -219,6 +221,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 			o.emitToolStart(toolCall.Function.Name, formatToolArgs(toolCall.Function.Arguments))
 			if o.config.Debug {
 				fmt.Printf("Calling: %s with args: %s\n", toolCall.Function.Name, toolCall.Function.Arguments)
+				fmt.Printf("Waiting for tool response: %s\n", toolCall.Function.Name)
 			}
 
 			result, isError, err := o.executeToolCall(ctx, toolCall)
@@ -242,6 +245,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 		if o.config.Debug {
 			fmt.Printf("=== Calling LLM Again with Tool Results ===\n")
+			fmt.Printf("LLM request start (messages=%d, tools=%d)\n", len(o.messages), len(o.tools))
 		}
 
 		o.emitStatus(fmt.Sprintf("thinking (model=%s)", o.llm.Model()))
@@ -260,6 +264,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 		if o.config.Debug {
 			fmt.Printf("LLM Response after tools: %s\n", truncateString(content, 200))
+			fmt.Printf("LLM response received after tools\n")
 		}
 
 		// Add assistant response
@@ -379,6 +384,9 @@ func (o *Orchestrator) Summarize(ctx context.Context, text string) (string, erro
 	}
 
 	model := o.config.LLM.CompactionModel
+	if o.config.Debug {
+		fmt.Printf("Compaction summarize start (model=%s, chars=%d)\n", model, len(text))
+	}
 	llmCtx, cancel := o.llmCallContext(ctx)
 	if cancel != nil {
 		defer cancel()
@@ -386,6 +394,9 @@ func (o *Orchestrator) Summarize(ctx context.Context, text string) (string, erro
 	content, _, err := o.llm.ChatWithModel(llmCtx, model, messages, nil)
 	if err != nil {
 		return "", err
+	}
+	if o.config.Debug {
+		fmt.Printf("Compaction summarize done (chars=%d)\n", len(content))
 	}
 
 	return stripThinkTags(content), nil

@@ -385,6 +385,8 @@ func compactSession(ctx context.Context, orch *orchestrator.Orchestrator, sessio
 		return fmt.Errorf("not enough messages to compact yet")
 	}
 
+	fmt.Fprintln(os.Stderr, "Compacting context...")
+
 	keep := 6
 	if len(messages)-1 <= keep {
 		return fmt.Errorf("not enough history to compact (need more than %d messages)", keep)
