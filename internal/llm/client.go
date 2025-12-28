@@ -2,8 +2,10 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
@@ -100,7 +102,7 @@ func (c *Client) ChatWithOptions(ctx context.Context, model string, messages []o
 
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("chat completion failed: %w", err)
+		return "", nil, fmt.Errorf("chat completion failed for model %q: %s", model, formatLLMError(err))
 	}
 
 	if len(resp.Choices) == 0 {
@@ -111,4 +113,52 @@ func (c *Client) ChatWithOptions(ctx context.Context, model string, messages []o
 	toolCalls := resp.Choices[0].Message.ToolCalls
 
 	return content, toolCalls, nil
+}
+
+func formatLLMError(err error) string {
+	if err == nil {
+		return "unknown error"
+	}
+
+	var apiErr *openai.APIError
+	if errors.As(err, &apiErr) {
+		return formatAPIError(apiErr)
+	}
+
+	var reqErr *openai.RequestError
+	if errors.As(err, &reqErr) {
+		base := fmt.Sprintf("status %d", reqErr.HTTPStatusCode)
+		if reqErr.Err != nil {
+			return base + ": " + formatLLMError(reqErr.Err)
+		}
+		return base + ": empty error response from provider"
+	}
+
+	return err.Error()
+}
+
+func formatAPIError(apiErr *openai.APIError) string {
+	if apiErr == nil {
+		return "unknown API error"
+	}
+	parts := make([]string, 0, 4)
+	if apiErr.Message != "" {
+		parts = append(parts, apiErr.Message)
+	}
+	if apiErr.Type != "" {
+		parts = append(parts, "type="+apiErr.Type)
+	}
+	if apiErr.Param != nil && *apiErr.Param != "" {
+		parts = append(parts, "param="+*apiErr.Param)
+	}
+	if apiErr.Code != nil {
+		parts = append(parts, fmt.Sprintf("code=%v", apiErr.Code))
+	}
+	if apiErr.HTTPStatusCode > 0 {
+		parts = append([]string{fmt.Sprintf("status %d", apiErr.HTTPStatusCode)}, parts...)
+	}
+	if len(parts) == 0 {
+		return "unknown API error"
+	}
+	return strings.Join(parts, ", ")
 }
