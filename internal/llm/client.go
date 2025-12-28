@@ -71,6 +71,11 @@ func (c *Client) Chat(ctx context.Context, messages []openai.ChatCompletionMessa
 
 // ChatWithModel sends a chat request using an explicit model name.
 func (c *Client) ChatWithModel(ctx context.Context, model string, messages []openai.ChatCompletionMessage, tools []openai.Tool) (string, []openai.ToolCall, error) {
+	return c.ChatWithOptions(ctx, model, messages, tools, "auto")
+}
+
+// ChatWithOptions sends a chat request with explicit tool choice handling.
+func (c *Client) ChatWithOptions(ctx context.Context, model string, messages []openai.ChatCompletionMessage, tools []openai.Tool, toolChoice any) (string, []openai.ToolCall, error) {
 	if model == "" {
 		model = c.model
 	}
@@ -82,7 +87,11 @@ func (c *Client) ChatWithModel(ctx context.Context, model string, messages []ope
 		Temperature: 0.7,
 	}
 	if len(tools) > 0 {
-		req.ToolChoice = "auto"
+		if toolChoice == nil {
+			req.ToolChoice = "auto"
+		} else {
+			req.ToolChoice = toolChoice
+		}
 	}
 
 	resp, err := c.client.CreateChatCompletion(ctx, req)

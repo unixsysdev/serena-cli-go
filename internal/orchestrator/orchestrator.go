@@ -161,7 +161,8 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 	}
 
 	// Call LLM with tools
-	content, toolCalls, err := o.llm.Chat(ctx, o.messages, o.tools)
+	toolChoice := o.selectToolChoice(userMsg)
+	content, toolCalls, err := o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, toolChoice)
 	if err != nil {
 		return "", fmt.Errorf("LLM chat failed: %w", err)
 	}
@@ -221,7 +222,7 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 		o.emitStatus(fmt.Sprintf("thinking (model=%s)", o.llm.Model()))
 
 		// Call LLM again with tool results
-		content, toolCalls, err = o.llm.Chat(ctx, o.messages, o.tools)
+		content, toolCalls, err = o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, "auto")
 		if err != nil {
 			return "", fmt.Errorf("LLM chat with tool results failed: %w", err)
 		}
@@ -403,6 +404,90 @@ func wrapUserTask(userMsg string) string {
 		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- Use tools only when necessary.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
 		trimmed,
 	)
+}
+
+func (o *Orchestrator) selectToolChoice(userMsg string) any {
+	if len(o.tools) == 0 {
+		return nil
+	}
+
+	lower := strings.ToLower(userMsg)
+	if strings.Contains(lower, "activate project") || strings.Contains(lower, "activate_project") {
+		if o.hasTool("activate_project") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "activate_project",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "readme") || strings.Contains(lower, "read file") || strings.Contains(lower, "read the file") {
+		if o.hasTool("read_file") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "read_file",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "list files") || strings.Contains(lower, "list dir") || strings.Contains(lower, "list directory") {
+		if o.hasTool("list_dir") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "list_dir",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "find file") {
+		if o.hasTool("find_file") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "find_file",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "search") {
+		if o.hasTool("search_for_pattern") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "search_for_pattern",
+				},
+			}
+		}
+	}
+
+	if strings.Contains(lower, "create a script") || strings.Contains(lower, "create script") || strings.Contains(lower, "create a file") || strings.Contains(lower, "write a file") {
+		if o.hasTool("create_text_file") {
+			return openai.ToolChoice{
+				Type: openai.ToolTypeFunction,
+				Function: openai.ToolFunction{
+					Name: "create_text_file",
+				},
+			}
+		}
+	}
+
+	return "auto"
+}
+
+func (o *Orchestrator) hasTool(name string) bool {
+	for _, tool := range o.tools {
+		if tool.Function != nil && tool.Function.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 var thinkTagPattern = regexp.MustCompile(`(?s)<think>.*?</think>`)
