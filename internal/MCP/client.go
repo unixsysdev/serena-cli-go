@@ -3,6 +3,7 @@ package MCP
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -28,7 +29,10 @@ func New(cfg *config.SerenaConfig) (*Client, error) {
 	}
 
 	// Add context flag
-	args = append(args, "--context", cfg.Context)
+	contextValue := normalizeContext(cfg.Context)
+	if contextValue != "" {
+		args = append(args, "--context", contextValue)
+	}
 
 	// Add project path if specified
 	if cfg.ProjectPath != "" {
@@ -114,4 +118,21 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments map[string
 // GetClient returns the underlying MCP client for advanced usage
 func (c *Client) GetClient() *client.Client {
 	return c.client
+}
+
+func normalizeContext(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	normalized := strings.ToLower(trimmed)
+	normalized = strings.ReplaceAll(normalized, " ", "-")
+
+	switch normalized {
+	case "claude-desktop", "desktop", "desktop-app", "claude-desktop-app":
+		return "desktop-app"
+	default:
+		return normalized
+	}
 }

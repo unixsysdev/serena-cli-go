@@ -43,6 +43,8 @@ serena:
     - "start-mcp-server"
 ```
 
+Note: `claude-desktop` is normalized to Serena's `desktop-app` context.
+
 Or set environment variables:
 
 ```bash
