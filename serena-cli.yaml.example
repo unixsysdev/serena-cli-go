@@ -18,8 +18,8 @@ serena:
   # Project path (use "." for current directory)
   project_path: "."
 
-  # Context mode: claude-code, ide, desktop-app, etc.
-  context: "claude-code"
+  # Context mode: claude-desktop, ide, desktop-app, etc.
+  context: "claude-desktop"
 
   # Command to start Serena MCP (default: uvx)
   command: "uvx"

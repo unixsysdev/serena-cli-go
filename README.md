@@ -33,7 +33,7 @@ llm:
   compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
 serena:
-  context: "claude-code"
+  context: "claude-desktop"
   project_path: "."
   command: "uvx"
   args:
