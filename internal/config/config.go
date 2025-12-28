@@ -10,16 +10,18 @@ import (
 
 // Config holds all configuration for Serena CLI
 type Config struct {
-	GLM    GLMConfig    `mapstructure:"glm"`
-	Serena SerenaConfig `mapstructure:"serena"`
-	Debug  bool         `mapstructure:"debug"`
+	LLM       LLMConfig    `mapstructure:"llm"`
+	LegacyLLM LLMConfig    `mapstructure:"glm"`
+	Serena    SerenaConfig `mapstructure:"serena"`
+	Debug     bool         `mapstructure:"debug"`
 }
 
-// GLMConfig holds GLM API configuration
-type GLMConfig struct {
-	APIKey  string `mapstructure:"api_key"`
-	BaseURL string `mapstructure:"base_url"`
-	Model   string `mapstructure:"model"`
+// LLMConfig holds LLM API configuration.
+type LLMConfig struct {
+	APIKey          string `mapstructure:"api_key"`
+	BaseURL         string `mapstructure:"base_url"`
+	Model           string `mapstructure:"model"`
+	CompactionModel string `mapstructure:"compaction_model"`
 }
 
 // SerenaConfig holds Serena MCP configuration
@@ -69,15 +71,18 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.AutomaticEnv()
 
 	// Direct LLM env vars
-	v.BindEnv("glm.api_key", "LLM_API_KEY", "CHUTES_API_KEY")
-	v.BindEnv("glm.base_url", "LLM_BASE_URL", "CHUTES_BASE_URL")
-	v.BindEnv("glm.model", "LLM_MODEL", "CHUTES_MODEL")
+	v.BindEnv("llm.api_key", "LLM_API_KEY", "CHUTES_API_KEY")
+	v.BindEnv("llm.base_url", "LLM_BASE_URL", "CHUTES_BASE_URL")
+	v.BindEnv("llm.model", "LLM_MODEL", "CHUTES_MODEL")
+	v.BindEnv("llm.compaction_model", "LLM_COMPACTION_MODEL", "CHUTES_COMPACTION_MODEL")
 
-	// Parse config
+	// Parse config.
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
+
+	mergeLegacyConfig(&cfg)
 
 	// Validate
 	if !opts.SkipValidation {
@@ -91,8 +96,9 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 
 // setDefaults sets default configuration values
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("glm.base_url", "https://llm.chutes.ai/v1")
-	v.SetDefault("glm.model", "zai-org/GLM-4.7-TEE")
+	v.SetDefault("llm.base_url", "https://llm.chutes.ai/v1")
+	v.SetDefault("llm.model", "zai-org/GLM-4.7-TEE")
+	v.SetDefault("llm.compaction_model", "Qwen/Qwen3-VL-235B-A22B-Instruct")
 	v.SetDefault("serena.context", "claude-code")
 	v.SetDefault("serena.command", "uvx")
 	v.SetDefault("serena.args", []string{
@@ -104,8 +110,31 @@ func setDefaults(v *viper.Viper) {
 
 // Validate validates the configuration
 func Validate(cfg *Config) error {
-	if cfg.GLM.APIKey == "" {
+	if cfg.LLM.APIKey == "" {
 		return fmt.Errorf("LLM API key is required (set LLM_API_KEY or configure in serena-cli.yaml)")
 	}
 	return nil
+}
+
+func mergeLegacyConfig(cfg *Config) {
+	if legacyEmpty(cfg.LegacyLLM) {
+		return
+	}
+
+	if cfg.LLM.APIKey == "" {
+		cfg.LLM.APIKey = cfg.LegacyLLM.APIKey
+	}
+	if cfg.LLM.BaseURL == "" {
+		cfg.LLM.BaseURL = cfg.LegacyLLM.BaseURL
+	}
+	if cfg.LLM.Model == "" {
+		cfg.LLM.Model = cfg.LegacyLLM.Model
+	}
+	if cfg.LLM.CompactionModel == "" {
+		cfg.LLM.CompactionModel = cfg.LegacyLLM.CompactionModel
+	}
+}
+
+func legacyEmpty(cfg LLMConfig) bool {
+	return cfg.APIKey == "" && cfg.BaseURL == "" && cfg.Model == "" && cfg.CompactionModel == ""
 }

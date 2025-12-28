@@ -1,13 +1,13 @@
 # Serena CLI - Go Edition
 
-A lean coding assistant powered by GLM 4.7 and Serena MCP.
+A lean coding assistant powered by Chutes-hosted LLMs and Serena MCP.
 
 ## Features
 
-- 🚀 Powered by chutes.ai models 
+- 🚀 Powered by Chutes-hosted LLMs
 - 🛠️ Full Serena MCP tool integration
 - ⚡ Fast compiled Go binary
-- 🔧  configuration management
+- 🔧 Configuration management
 
 ## Installation
 
@@ -26,10 +26,11 @@ Create a `serena-cli.yaml` file (copy `serena-cli.yaml.example` from this repo).
 Example minimal config:
 
 ```yaml
-glm:
+llm:
   api_key: "your-api-key"
   base_url: "https://llm.chutes.ai/v1"
   model: "zai-org/GLM-4.7-TEE"
+  compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
 serena:
   context: "claude-code"
@@ -48,6 +49,7 @@ Or set environment variables:
 export LLM_API_KEY="your-api-key"
 export LLM_BASE_URL="https://llm.chutes.ai/v1"
 export LLM_MODEL="zai-org/GLM-4.7-TEE"
+export LLM_COMPACTION_MODEL="Qwen/Qwen3-VL-235B-A22B-Instruct"
 ```
 
 ## Usage
@@ -76,7 +78,18 @@ REPL commands:
 /model
 /model 3
 /model "moonshotai/Kimi-K2-Instruct-0905"
+/tools
+/status
+/context
+/trace 5
+/session list
+/session new experiment
+/session switch experiment
+/compact
+@context ./README.md
 ```
+
+Sessions are stored under `~/.serena-cli/sessions/<project-name>` so you can switch contexts.
 
 ### Built-in models
 

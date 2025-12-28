@@ -4,29 +4,43 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sashabaranov/go-openai"
-	"github.com/unixsysdev/serena-cli-go/internal/GLM"
 	"github.com/unixsysdev/serena-cli-go/internal/MCP"
 	"github.com/unixsysdev/serena-cli-go/internal/config"
+	"github.com/unixsysdev/serena-cli-go/internal/llm"
 )
 
-// Orchestrator manages the interaction between GLM and Serena MCP
+// Orchestrator manages the interaction between the LLM and Serena MCP.
 type Orchestrator struct {
 	config   *config.Config
-	glm      *GLM.Client
+	llm      *llm.Client
 	mcp      *MCP.Client
 	messages []openai.ChatCompletionMessage
 	tools    []openai.Tool
+	events   *EventHandler
+	local    map[string]LocalToolHandler
 }
+
+// EventHandler allows callers to observe progress and tool usage.
+type EventHandler struct {
+	OnStatus    func(message string)
+	OnToolStart func(name string, args string)
+	OnToolEnd   func(name string, result string, isError bool)
+}
+
+// LocalToolHandler handles a local tool call without going through MCP.
+type LocalToolHandler func(ctx context.Context, arguments map[string]interface{}) (string, error)
 
 // New creates a new orchestrator
 func New(cfg *config.Config) (*Orchestrator, error) {
-	// Create GLM client
-	glm, err := GLM.New(&cfg.GLM)
+	// Create LLM client.
+	llmClient, err := llm.New(&cfg.LLM)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create GLM client: %w", err)
+		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
 	// Create MCP client
@@ -37,9 +51,26 @@ func New(cfg *config.Config) (*Orchestrator, error) {
 
 	return &Orchestrator{
 		config: cfg,
-		glm:    glm,
+		llm:    llmClient,
 		mcp:    mcpClient,
 	}, nil
+}
+
+// SetEventHandler sets an optional event handler for progress updates.
+func (o *Orchestrator) SetEventHandler(handler *EventHandler) {
+	o.events = handler
+}
+
+// AddLocalTool registers a local tool and its handler.
+func (o *Orchestrator) AddLocalTool(tool openai.Tool, handler LocalToolHandler) {
+	if tool.Function == nil || handler == nil {
+		return
+	}
+	if o.local == nil {
+		o.local = make(map[string]LocalToolHandler)
+	}
+	o.local[tool.Function.Name] = handler
+	o.tools = append(o.tools, tool)
 }
 
 // Initialize sets up connections and loads available tools
@@ -88,7 +119,7 @@ func (o *Orchestrator) Initialize() error {
 
 // buildFallbackPrompt creates a fallback system prompt when Serena doesn't provide one
 func (o *Orchestrator) buildFallbackPrompt(tools []mcp.Tool) string {
-	prompt := `You are Serena CLI, a lean coding assistant powered by GLM 4.7 and Serena MCP.
+	prompt := `You are Serena CLI, a lean coding assistant powered by Chutes-hosted LLMs and Serena MCP.
 
 You have access to powerful tools through the Serena MCP server. These tools can help you:
 - Read and analyze code
@@ -120,21 +151,25 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 	// Add user message
 	o.messages = append(o.messages, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
-		Content: userMsg,
+		Content: wrapUserTask(userMsg),
 	})
 
+	o.emitStatus(fmt.Sprintf("thinking (model=%s)", o.llm.Model()))
+
 	if o.config.Debug {
-		fmt.Printf("\n=== Sending to GLM ===\nUser: %s\n=====================\n\n", userMsg)
+		fmt.Printf("\n=== Sending to LLM ===\nUser: %s\n=====================\n\n", userMsg)
 	}
 
-	// Call GLM with tools
-	content, toolCalls, err := o.glm.Chat(ctx, o.messages, o.tools)
+	// Call LLM with tools
+	content, toolCalls, err := o.llm.Chat(ctx, o.messages, o.tools)
 	if err != nil {
-		return "", fmt.Errorf("GLM chat failed: %w", err)
+		return "", fmt.Errorf("LLM chat failed: %w", err)
 	}
 
+	content = stripThinkTags(content)
+
 	if o.config.Debug {
-		fmt.Printf("\n=== GLM Response ===\nContent: %s\nTool Calls: %d\n====================\n\n", content, len(toolCalls))
+		fmt.Printf("\n=== LLM Response ===\nContent: %s\nTool Calls: %d\n====================\n\n", content, len(toolCalls))
 		for i, tc := range toolCalls {
 			fmt.Printf("  Tool %d: %s\n", i+1, tc.Function.Name)
 		}
@@ -155,14 +190,17 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 		// Execute each tool call
 		for _, toolCall := range toolCalls {
+			o.emitToolStart(toolCall.Function.Name, formatToolArgs(toolCall.Function.Arguments))
 			if o.config.Debug {
 				fmt.Printf("Calling: %s with args: %s\n", toolCall.Function.Name, toolCall.Function.Arguments)
 			}
 
-			result, err := o.executeToolCall(ctx, toolCall)
+			result, isError, err := o.executeToolCall(ctx, toolCall)
 			if err != nil {
 				return "", fmt.Errorf("tool execution failed: %w", err)
 			}
+
+			o.emitToolEnd(toolCall.Function.Name, result, isError)
 
 			if o.config.Debug {
 				fmt.Printf("Result: %s\n", truncateString(result, 200))
@@ -177,17 +215,21 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 		}
 
 		if o.config.Debug {
-			fmt.Printf("=== Calling GLM Again with Tool Results ===\n")
+			fmt.Printf("=== Calling LLM Again with Tool Results ===\n")
 		}
 
-		// Call GLM again with tool results
-		content, toolCalls, err = o.glm.Chat(ctx, o.messages, o.tools)
+		o.emitStatus(fmt.Sprintf("thinking (model=%s)", o.llm.Model()))
+
+		// Call LLM again with tool results
+		content, toolCalls, err = o.llm.Chat(ctx, o.messages, o.tools)
 		if err != nil {
-			return "", fmt.Errorf("GLM chat with tool results failed: %w", err)
+			return "", fmt.Errorf("LLM chat with tool results failed: %w", err)
 		}
+
+		content = stripThinkTags(content)
 
 		if o.config.Debug {
-			fmt.Printf("GLM Response after tools: %s\n", truncateString(content, 200))
+			fmt.Printf("LLM Response after tools: %s\n", truncateString(content, 200))
 		}
 
 		// Add assistant response
@@ -203,13 +245,13 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 // Model returns the active model name.
 func (o *Orchestrator) Model() string {
-	return o.glm.Model()
+	return o.llm.Model()
 }
 
 // SetModel updates the active model.
 func (o *Orchestrator) SetModel(model string) {
-	o.config.GLM.Model = model
-	o.glm.SetModel(model)
+	o.config.LLM.Model = model
+	o.llm.SetModel(model)
 }
 
 // Reset clears the conversation history while keeping the system prompt.
@@ -217,6 +259,102 @@ func (o *Orchestrator) Reset() {
 	if len(o.messages) > 0 {
 		o.messages = o.messages[:1]
 	}
+}
+
+// SystemPrompt returns the current system prompt.
+func (o *Orchestrator) SystemPrompt() string {
+	if len(o.messages) == 0 {
+		return ""
+	}
+	return o.messages[0].Content
+}
+
+// Messages returns a copy of the current conversation messages.
+func (o *Orchestrator) Messages() []openai.ChatCompletionMessage {
+	messages := make([]openai.ChatCompletionMessage, len(o.messages))
+	copy(messages, o.messages)
+	return messages
+}
+
+// ReplaceMessages replaces the current conversation messages.
+func (o *Orchestrator) ReplaceMessages(messages []openai.ChatCompletionMessage) {
+	o.messages = messages
+}
+
+// AddContext appends extra context as a system message.
+func (o *Orchestrator) AddContext(label string, content string) {
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+	msg := fmt.Sprintf("<context source=%q>\n%s\n</context>", label, strings.TrimSpace(content))
+	o.messages = append(o.messages, openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleSystem,
+		Content: msg,
+	})
+}
+
+// Tools returns the currently loaded tool definitions.
+func (o *Orchestrator) Tools() []openai.Tool {
+	tools := make([]openai.Tool, len(o.tools))
+	copy(tools, o.tools)
+	return tools
+}
+
+// ConversationStats provides basic context usage estimates.
+type ConversationStats struct {
+	MessageCount  int
+	ToolCallCount int
+	CharCount     int
+	ApproxTokens  int
+}
+
+// ConversationStats returns approximate context usage based on messages and tool calls.
+func (o *Orchestrator) ConversationStats() ConversationStats {
+	stats := ConversationStats{
+		MessageCount: len(o.messages),
+	}
+
+	for _, msg := range o.messages {
+		stats.CharCount += len(msg.Content)
+		if len(msg.ToolCalls) > 0 {
+			stats.ToolCallCount += len(msg.ToolCalls)
+			for _, call := range msg.ToolCalls {
+				stats.CharCount += len(call.Function.Name)
+				stats.CharCount += len(call.Function.Arguments)
+			}
+		}
+	}
+
+	if stats.CharCount > 0 {
+		stats.ApproxTokens = stats.CharCount / 4
+	}
+
+	return stats
+}
+
+// Summarize builds a compact summary of the provided text using the compaction model.
+func (o *Orchestrator) Summarize(ctx context.Context, text string) (string, error) {
+	system := "Summarize the conversation content into a concise, structured summary. " +
+		"Preserve key requirements, decisions, file paths, commands, and open questions. " +
+		"Use bullets where helpful."
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: system,
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: text,
+		},
+	}
+
+	model := o.config.LLM.CompactionModel
+	content, _, err := o.llm.ChatWithModel(ctx, model, messages, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return stripThinkTags(content), nil
 }
 
 // truncateString truncates a string for display
@@ -227,24 +365,89 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
+func (o *Orchestrator) emitStatus(message string) {
+	if o.events != nil && o.events.OnStatus != nil {
+		o.events.OnStatus(message)
+	}
+}
+
+func (o *Orchestrator) emitToolStart(name string, args string) {
+	if o.events != nil && o.events.OnToolStart != nil {
+		o.events.OnToolStart(name, args)
+	}
+}
+
+func (o *Orchestrator) emitToolEnd(name string, result string, isError bool) {
+	if o.events != nil && o.events.OnToolEnd != nil {
+		o.events.OnToolEnd(name, result, isError)
+	}
+}
+
+func formatToolArgs(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	oneLine := strings.ReplaceAll(trimmed, "\n", " ")
+	oneLine = strings.ReplaceAll(oneLine, "\r", " ")
+	return truncateString(oneLine, 160)
+}
+
+func wrapUserTask(userMsg string) string {
+	trimmed := strings.TrimSpace(userMsg)
+	if trimmed == "" {
+		return "<task></task>"
+	}
+
+	return fmt.Sprintf(
+		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- Use tools only when necessary.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
+		trimmed,
+	)
+}
+
+var thinkTagPattern = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
+func stripThinkTags(content string) string {
+	if content == "" {
+		return content
+	}
+	clean := thinkTagPattern.ReplaceAllString(content, "")
+	return strings.TrimSpace(clean)
+}
+
 // executeToolCall executes a single tool call via MCP
-func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.ToolCall) (string, error) {
+func (o *Orchestrator) executeToolCall(ctx context.Context, toolCall openai.ToolCall) (string, bool, error) {
 	// Parse tool arguments from JSON
 	var args map[string]interface{}
 	if toolCall.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return "", fmt.Errorf("failed to parse tool arguments: %w", err)
+			return "", false, fmt.Errorf("failed to parse tool arguments: %w", err)
 		}
+	}
+
+	if handler := o.localToolHandler(toolCall.Function.Name); handler != nil {
+		result, err := handler(ctx, args)
+		if err != nil {
+			return fmt.Sprintf("Error: %s", err.Error()), true, nil
+		}
+		return result, false, nil
 	}
 
 	// Call the tool via MCP
 	result, err := o.mcp.CallTool(ctx, toolCall.Function.Name, args)
 	if err != nil {
-		return "", fmt.Errorf("MCP tool call failed: %w", err)
+		return "", false, fmt.Errorf("MCP tool call failed: %w", err)
 	}
 
 	// Format the result
-	return formatToolResult(result), nil
+	return formatToolResult(result), result.IsError, nil
+}
+
+func (o *Orchestrator) localToolHandler(name string) LocalToolHandler {
+	if o.local == nil {
+		return nil
+	}
+	return o.local[name]
 }
 
 // Close cleans up connections

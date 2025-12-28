@@ -1,4 +1,4 @@
-package GLM
+package llm
 
 import (
 	"context"
@@ -9,16 +9,16 @@ import (
 	"github.com/unixsysdev/serena-cli-go/internal/config"
 )
 
-// Client handles GLM API communication
+// Client handles LLM API communication.
 type Client struct {
 	client *openai.Client
 	model  string
 }
 
-// New creates a new GLM client
-func New(cfg *config.GLMConfig) (*Client, error) {
+// New creates a new LLM client.
+func New(cfg *config.LLMConfig) (*Client, error) {
 	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("GLM API key is required")
+		return nil, fmt.Errorf("LLM API key is required")
 	}
 
 	// Create custom HTTP client with User-Agent header
@@ -29,7 +29,7 @@ func New(cfg *config.GLMConfig) (*Client, error) {
 		},
 	}
 
-	// Create custom config with base URL and custom HTTP client
+	// Create custom config with base URL and custom HTTP client.
 	config := openai.DefaultConfig(cfg.APIKey)
 	config.BaseURL = cfg.BaseURL
 	config.HTTPClient = httpClient
@@ -66,25 +66,31 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 // Chat sends a chat completion request
 func (c *Client) Chat(ctx context.Context, messages []openai.ChatCompletionMessage, tools []openai.Tool) (string, []openai.ToolCall, error) {
-	// Create request
+	return c.ChatWithModel(ctx, c.model, messages, tools)
+}
+
+// ChatWithModel sends a chat request using an explicit model name.
+func (c *Client) ChatWithModel(ctx context.Context, model string, messages []openai.ChatCompletionMessage, tools []openai.Tool) (string, []openai.ToolCall, error) {
+	if model == "" {
+		model = c.model
+	}
+
 	req := openai.ChatCompletionRequest{
-		Model:       c.model,
+		Model:       model,
 		Messages:    messages,
 		Tools:       tools,
 		Temperature: 0.7,
 	}
 
-	// Send request
 	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", nil, fmt.Errorf("chat completion failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
-		return "", nil, fmt.Errorf("no response from GLM")
+		return "", nil, fmt.Errorf("no response from LLM")
 	}
 
-	// Extract content and tool calls
 	content := resp.Choices[0].Message.Content
 	toolCalls := resp.Choices[0].Message.ToolCalls
 

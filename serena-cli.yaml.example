@@ -1,7 +1,7 @@
 # Serena CLI sample configuration.
 # Save as serena-cli.yaml in your project or config dir (~/.serena-cli or ~/.config/serena-cli).
 
-glm:
+llm:
   # API key for Chutes (or set LLM_API_KEY env var)
   api_key: "your-api-key"
 
@@ -10,6 +10,9 @@ glm:
 
   # Model to use (can also switch at runtime with /model)
   model: "zai-org/GLM-4.7-TEE"
+
+  # Model to use for context compaction (/compact)
+  compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
 serena:
   # Project path (use "." for current directory)
