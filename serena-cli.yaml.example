@@ -21,8 +21,6 @@ serena:
   # Context mode (optional; leave empty to let Serena decide)
   # context: ""
 
-  # Tool selection mode: auto (model decides), guard (auto + retry with forced tools), or heuristic (force tools)
-  tool_mode: "guard"
 
   # Command to start Serena MCP (default: uvx)
   command: "uvx"

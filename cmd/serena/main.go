@@ -215,8 +215,6 @@ func handleCommand(ctx context.Context, line string, orch *orchestrator.Orchestr
 		return false, handleSessionCommand(args, orch, sessions, ui)
 	case "compact":
 		return false, compactSession(ctx, orch, sessions)
-	case "toolmode":
-		return false, handleToolModeCommand(args, orch)
 	case "clear":
 		clearScreen()
 		return false, nil
@@ -292,7 +290,6 @@ func printHelp() {
 	fmt.Println("  /trace [n]      Show recent tool calls")
 	fmt.Println("  /session ...    Manage sessions (list/new/switch/delete)")
 	fmt.Println("  /compact        Compact older context into a summary")
-	fmt.Println("  /toolmode       Show or set tool selection mode")
 	fmt.Println("  /clear          Clear the screen")
 	fmt.Println("  /config         Show resolved config (API key masked)")
 	fmt.Println("  /reset          Clear the conversation context")
@@ -357,7 +354,6 @@ func printStatus(orch *orchestrator.Orchestrator, cfg *config.Config, sessions *
 		contextLabel = "(auto)"
 	}
 	fmt.Printf("Context: %s\n", contextLabel)
-	fmt.Printf("Tool mode: %s\n", orch.ToolMode())
 	fmt.Printf("Tools loaded: %d\n", len(orch.Tools()))
 	fmt.Printf("Session: %s\n", sessions.Current())
 	fmt.Printf("Approx tokens: %d / %d (%.1f%%)\n", stats.ApproxTokens, contextLimitTokens, percent)
@@ -708,22 +704,6 @@ func shortModelName(model string) string {
 		return trimmed[idx+1:]
 	}
 	return trimmed
-}
-
-func handleToolModeCommand(args []string, orch *orchestrator.Orchestrator) error {
-	if len(args) == 0 {
-		fmt.Printf("Tool mode: %s\n", orch.ToolMode())
-		fmt.Println("Available: auto, guard, heuristic")
-		return nil
-	}
-
-	mode := strings.ToLower(strings.TrimSpace(args[0]))
-	if mode != "auto" && mode != "guard" && mode != "heuristic" {
-		return fmt.Errorf("invalid tool mode: %s (use auto, guard, or heuristic)", mode)
-	}
-	orch.SetToolMode(mode)
-	fmt.Printf("Tool mode set to %s\n", mode)
-	return nil
 }
 
 func formatBanner(label string, value string, note string) string {

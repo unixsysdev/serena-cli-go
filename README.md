@@ -39,7 +39,6 @@ serena:
     - "git+https://github.com/oraios/serena"
     - "serena"
     - "start-mcp-server"
-  tool_mode: "guard"
 ```
 
 Optional: set `serena.context` or `serena.project_path` if you want to force them;
@@ -89,9 +88,6 @@ REPL commands:
 /session switch experiment
 /compact
 @context ./README.md
-/toolmode
-/toolmode guard
-/toolmode heuristic
 ```
 
 Sessions are stored under `~/.serena-cli/sessions/<project-name>` so you can switch contexts.

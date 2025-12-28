@@ -23,7 +23,6 @@ type Orchestrator struct {
 	tools    []openai.Tool
 	events   *EventHandler
 	local    map[string]LocalToolHandler
-	toolMode string
 }
 
 // EventHandler allows callers to observe progress and tool usage.
@@ -51,10 +50,9 @@ func New(cfg *config.Config) (*Orchestrator, error) {
 	}
 
 	return &Orchestrator{
-		config:   cfg,
-		llm:      llmClient,
-		mcp:      mcpClient,
-		toolMode: normalizeToolMode(cfg.Serena.ToolMode),
+		config: cfg,
+		llm:    llmClient,
+		mcp:    mcpClient,
 	}, nil
 }
 
@@ -103,6 +101,7 @@ func (o *Orchestrator) Initialize() error {
 		// Fallback if no instructions provided
 		systemPrompt = o.buildFallbackPrompt(mcpTools)
 	}
+	systemPrompt = appendToolingGuidance(systemPrompt)
 
 	// Debug: Print what Serena sent us
 	if o.config.Debug {
@@ -148,6 +147,25 @@ Be direct and efficient. Focus on getting things done.`
 	return prompt
 }
 
+func appendToolingGuidance(systemPrompt string) string {
+	guidance := strings.TrimSpace(toolingGuidance())
+	if guidance == "" {
+		return systemPrompt
+	}
+	trimmed := strings.TrimSpace(systemPrompt)
+	if trimmed == "" {
+		return guidance
+	}
+	return trimmed + "\n\n" + guidance
+}
+
+func toolingGuidance() string {
+	return `Tool Use Policy:
+- Use tools for any file, repo, or project action (read/write/search/execute).
+- Do not claim actions you did not perform via tools.
+- When a tool is needed, respond with tool calls and wait for results before final answers.`
+}
+
 // Chat processes a user message and returns the response
 func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error) {
 	// Add user message
@@ -163,28 +181,12 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 	}
 
 	// Call LLM with tools
-	var toolChoice any = "auto"
-	if o.toolMode == "heuristic" {
-		toolChoice = o.selectToolChoice(userMsg)
-	}
-	content, toolCalls, err := o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, toolChoice)
+	content, toolCalls, err := o.llm.Chat(ctx, o.messages, o.tools)
 	if err != nil {
 		return "", fmt.Errorf("LLM chat failed: %w", err)
 	}
 
 	content = stripThinkTags(content)
-
-	// Guard mode: retry with forced tool if the model didn't call tools for a tool-required request.
-	if o.toolMode == "guard" && len(toolCalls) == 0 {
-		forcedChoice := o.selectToolChoice(userMsg)
-		if isForcedToolChoice(forcedChoice) {
-			content, toolCalls, err = o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, forcedChoice)
-			if err != nil {
-				return "", fmt.Errorf("LLM chat failed: %w", err)
-			}
-			content = stripThinkTags(content)
-		}
-	}
 
 	if o.config.Debug {
 		fmt.Printf("\n=== LLM Response ===\nContent: %s\nTool Calls: %d\n====================\n\n", content, len(toolCalls))
@@ -266,21 +268,10 @@ func (o *Orchestrator) Model() string {
 	return o.llm.Model()
 }
 
-// ToolMode returns the current tool selection mode.
-func (o *Orchestrator) ToolMode() string {
-	return o.toolMode
-}
-
 // SetModel updates the active model.
 func (o *Orchestrator) SetModel(model string) {
 	o.config.LLM.Model = model
 	o.llm.SetModel(model)
-}
-
-// SetToolMode updates the tool selection mode.
-func (o *Orchestrator) SetToolMode(mode string) {
-	o.toolMode = normalizeToolMode(mode)
-	o.config.Serena.ToolMode = o.toolMode
 }
 
 // Reset clears the conversation history while keeping the system prompt.
@@ -429,172 +420,13 @@ func wrapUserTask(userMsg string) string {
 	}
 
 	return fmt.Sprintf(
-		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- For any file system or project action, call tools instead of just describing the action.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
+		"<task>\n<request>\n%s\n</request>\n</task>",
 		trimmed,
 	)
 }
 
-func normalizeToolMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "heuristic":
-		return "heuristic"
-	case "guard":
-		return "guard"
-	default:
-		return "auto"
-	}
-}
-
-func isForcedToolChoice(choice any) bool {
-	if choice == nil {
-		return false
-	}
-	switch v := choice.(type) {
-	case string:
-		return v != "" && v != "auto"
-	case openai.ToolChoice:
-		return v.Function.Name != ""
-	default:
-		return true
-	}
-}
-
-func (o *Orchestrator) selectToolChoice(userMsg string) any {
-	if len(o.tools) == 0 {
-		return nil
-	}
-
-	lower := strings.ToLower(userMsg)
-	if name := o.explicitToolName(lower); name != "" {
-		return openai.ToolChoice{
-			Type: openai.ToolTypeFunction,
-			Function: openai.ToolFunction{
-				Name: name,
-			},
-		}
-	}
-	if strings.Contains(lower, "activate project") || strings.Contains(lower, "activate_project") {
-		if o.hasTool("activate_project") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "activate_project",
-				},
-			}
-		}
-	}
-
-	if readMemoriesPattern.MatchString(lower) || listMemoriesPattern.MatchString(lower) {
-		if o.hasTool("list_memories") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "list_memories",
-				},
-			}
-		}
-	}
-
-	if readMemoryPattern.MatchString(lower) {
-		if o.hasTool("read_memory") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "read_memory",
-				},
-			}
-		}
-	}
-
-	if strings.Contains(lower, "readme") || strings.Contains(lower, "read file") || strings.Contains(lower, "read the file") || strings.Contains(lower, "read the readme") {
-		if o.hasTool("read_file") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "read_file",
-				},
-			}
-		}
-	}
-
-	if strings.Contains(lower, "list files") || strings.Contains(lower, "list dir") || strings.Contains(lower, "list directory") {
-		if o.hasTool("list_dir") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "list_dir",
-				},
-			}
-		}
-	}
-
-	if strings.Contains(lower, "find file") {
-		if o.hasTool("find_file") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "find_file",
-				},
-			}
-		}
-	}
-
-	if strings.Contains(lower, "search") {
-		if o.hasTool("search_for_pattern") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "search_for_pattern",
-				},
-			}
-		}
-	}
-
-	if createScriptPattern.MatchString(lower) || strings.Contains(lower, "create a file") || strings.Contains(lower, "write a file") {
-		if o.hasTool("create_text_file") {
-			return openai.ToolChoice{
-				Type: openai.ToolTypeFunction,
-				Function: openai.ToolFunction{
-					Name: "create_text_file",
-				},
-			}
-		}
-	}
-
-	return "auto"
-}
-
-func (o *Orchestrator) hasTool(name string) bool {
-	for _, tool := range o.tools {
-		if tool.Function != nil && tool.Function.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func (o *Orchestrator) explicitToolName(message string) string {
-	for _, tool := range o.tools {
-		if tool.Function == nil {
-			continue
-		}
-		name := strings.ToLower(tool.Function.Name)
-		if name == "" {
-			continue
-		}
-		if strings.Contains(message, name) {
-			return tool.Function.Name
-		}
-	}
-	return ""
-}
-
 var (
-	thinkTagPattern     = regexp.MustCompile(`(?s)<think>.*?</think>`)
-	createScriptPattern = regexp.MustCompile(`(?i)\b(create|write)\b.*\bscript\b`)
-	readMemoriesPattern = regexp.MustCompile(`(?i)\bread\b.*\bmemories\b|\bmemories\b.*\bread\b`)
-	readMemoryPattern   = regexp.MustCompile(`(?i)\bread\b.*\bmemory\b`)
-	listMemoriesPattern = regexp.MustCompile(`(?i)\blist\b.*\bmemories\b|\bmemories\b.*\blist\b`)
+	thinkTagPattern = regexp.MustCompile(`(?s)<think>.*?</think>`)
 )
 
 func stripThinkTags(content string) string {

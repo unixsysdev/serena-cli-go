@@ -10,10 +10,9 @@ import (
 
 // Config holds all configuration for Serena CLI
 type Config struct {
-	LLM       LLMConfig    `mapstructure:"llm"`
-	LegacyLLM LLMConfig    `mapstructure:"glm"`
-	Serena    SerenaConfig `mapstructure:"serena"`
-	Debug     bool         `mapstructure:"debug"`
+	LLM    LLMConfig    `mapstructure:"llm"`
+	Serena SerenaConfig `mapstructure:"serena"`
+	Debug  bool         `mapstructure:"debug"`
 }
 
 // LLMConfig holds LLM API configuration.
@@ -31,7 +30,6 @@ type SerenaConfig struct {
 	Command     string            `mapstructure:"command"`
 	Args        []string          `mapstructure:"args"`
 	Env         map[string]string `mapstructure:"env"`
-	ToolMode    string            `mapstructure:"tool_mode"`
 }
 
 // LoadOptions controls configuration loading behavior.
@@ -83,8 +81,6 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	mergeLegacyConfig(&cfg)
-
 	// Validate
 	if !opts.SkipValidation {
 		if err := Validate(&cfg); err != nil {
@@ -106,7 +102,6 @@ func setDefaults(v *viper.Viper) {
 		"--from", "git+https://github.com/oraios/serena",
 		"serena", "start-mcp-server",
 	})
-	v.SetDefault("serena.tool_mode", "guard")
 	v.SetDefault("debug", false)
 }
 
@@ -116,27 +111,4 @@ func Validate(cfg *Config) error {
 		return fmt.Errorf("LLM API key is required (set LLM_API_KEY or configure in serena-cli.yaml)")
 	}
 	return nil
-}
-
-func mergeLegacyConfig(cfg *Config) {
-	if legacyEmpty(cfg.LegacyLLM) {
-		return
-	}
-
-	if cfg.LLM.APIKey == "" {
-		cfg.LLM.APIKey = cfg.LegacyLLM.APIKey
-	}
-	if cfg.LLM.BaseURL == "" {
-		cfg.LLM.BaseURL = cfg.LegacyLLM.BaseURL
-	}
-	if cfg.LLM.Model == "" {
-		cfg.LLM.Model = cfg.LegacyLLM.Model
-	}
-	if cfg.LLM.CompactionModel == "" {
-		cfg.LLM.CompactionModel = cfg.LegacyLLM.CompactionModel
-	}
-}
-
-func legacyEmpty(cfg LLMConfig) bool {
-	return cfg.APIKey == "" && cfg.BaseURL == "" && cfg.Model == "" && cfg.CompactionModel == ""
 }
