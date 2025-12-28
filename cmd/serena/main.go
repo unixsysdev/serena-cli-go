@@ -816,19 +816,31 @@ func readUserInput(line *liner.State, prompt string) (string, bool, error) {
 		return "", false, err
 	}
 
-	lines := []string{input}
-	for stdinHasData() {
-		next, err := line.Prompt("")
+	lines := make([]string, 0, 4)
+	cleaned, cont := trimContinuation(input)
+	lines = append(lines, cleaned)
+	for cont {
+		next, err := line.Prompt("... ")
 		if err != nil {
 			return "", false, err
 		}
-		lines = append(lines, next)
+		cleaned, cont = trimContinuation(next)
+		lines = append(lines, cleaned)
 	}
 
 	if len(lines) > 1 {
 		return strings.Join(lines, "\n"), true, nil
 	}
 	return input, false, nil
+}
+
+func trimContinuation(input string) (string, bool) {
+	trimmed := strings.TrimRight(input, " \t")
+	if strings.HasSuffix(trimmed, "\\") && !strings.HasSuffix(trimmed, "\\\\") {
+		cleaned := strings.TrimRight(trimmed[:len(trimmed)-1], " \t")
+		return cleaned, true
+	}
+	return input, false
 }
 
 func printPastePreview(text string) {
