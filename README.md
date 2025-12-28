@@ -39,7 +39,7 @@ serena:
     - "git+https://github.com/oraios/serena"
     - "serena"
     - "start-mcp-server"
-  tool_mode: "auto"
+  tool_mode: "guard"
 ```
 
 Optional: set `serena.context` or `serena.project_path` if you want to force them;
@@ -90,6 +90,7 @@ REPL commands:
 /compact
 @context ./README.md
 /toolmode
+/toolmode guard
 /toolmode heuristic
 ```
 

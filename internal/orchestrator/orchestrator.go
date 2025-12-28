@@ -174,6 +174,18 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 
 	content = stripThinkTags(content)
 
+	// Guard mode: retry with forced tool if the model didn't call tools for a tool-required request.
+	if o.toolMode == "guard" && len(toolCalls) == 0 {
+		forcedChoice := o.selectToolChoice(userMsg)
+		if isForcedToolChoice(forcedChoice) {
+			content, toolCalls, err = o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, forcedChoice)
+			if err != nil {
+				return "", fmt.Errorf("LLM chat failed: %w", err)
+			}
+			content = stripThinkTags(content)
+		}
+	}
+
 	if o.config.Debug {
 		fmt.Printf("\n=== LLM Response ===\nContent: %s\nTool Calls: %d\n====================\n\n", content, len(toolCalls))
 		for i, tc := range toolCalls {
@@ -426,8 +438,24 @@ func normalizeToolMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "heuristic":
 		return "heuristic"
+	case "guard":
+		return "guard"
 	default:
 		return "auto"
+	}
+}
+
+func isForcedToolChoice(choice any) bool {
+	if choice == nil {
+		return false
+	}
+	switch v := choice.(type) {
+	case string:
+		return v != "" && v != "auto"
+	case openai.ToolChoice:
+		return v.Function.Name != ""
+	default:
+		return true
 	}
 }
 

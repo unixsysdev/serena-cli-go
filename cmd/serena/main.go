@@ -713,13 +713,13 @@ func shortModelName(model string) string {
 func handleToolModeCommand(args []string, orch *orchestrator.Orchestrator) error {
 	if len(args) == 0 {
 		fmt.Printf("Tool mode: %s\n", orch.ToolMode())
-		fmt.Println("Available: auto, heuristic")
+		fmt.Println("Available: auto, guard, heuristic")
 		return nil
 	}
 
 	mode := strings.ToLower(strings.TrimSpace(args[0]))
-	if mode != "auto" && mode != "heuristic" {
-		return fmt.Errorf("invalid tool mode: %s (use auto or heuristic)", mode)
+	if mode != "auto" && mode != "guard" && mode != "heuristic" {
+		return fmt.Errorf("invalid tool mode: %s (use auto, guard, or heuristic)", mode)
 	}
 	orch.SetToolMode(mode)
 	fmt.Printf("Tool mode set to %s\n", mode)

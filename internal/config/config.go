@@ -106,7 +106,7 @@ func setDefaults(v *viper.Viper) {
 		"--from", "git+https://github.com/oraios/serena",
 		"serena", "start-mcp-server",
 	})
-	v.SetDefault("serena.tool_mode", "auto")
+	v.SetDefault("serena.tool_mode", "guard")
 	v.SetDefault("debug", false)
 }
 
