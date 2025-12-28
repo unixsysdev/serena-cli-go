@@ -23,6 +23,7 @@ type Orchestrator struct {
 	tools    []openai.Tool
 	events   *EventHandler
 	local    map[string]LocalToolHandler
+	toolMode string
 }
 
 // EventHandler allows callers to observe progress and tool usage.
@@ -50,9 +51,10 @@ func New(cfg *config.Config) (*Orchestrator, error) {
 	}
 
 	return &Orchestrator{
-		config: cfg,
-		llm:    llmClient,
-		mcp:    mcpClient,
+		config:   cfg,
+		llm:      llmClient,
+		mcp:      mcpClient,
+		toolMode: normalizeToolMode(cfg.Serena.ToolMode),
 	}, nil
 }
 
@@ -161,7 +163,10 @@ func (o *Orchestrator) Chat(ctx context.Context, userMsg string) (string, error)
 	}
 
 	// Call LLM with tools
-	toolChoice := o.selectToolChoice(userMsg)
+	var toolChoice any = "auto"
+	if o.toolMode == "heuristic" {
+		toolChoice = o.selectToolChoice(userMsg)
+	}
 	content, toolCalls, err := o.llm.ChatWithOptions(ctx, o.llm.Model(), o.messages, o.tools, toolChoice)
 	if err != nil {
 		return "", fmt.Errorf("LLM chat failed: %w", err)
@@ -249,10 +254,21 @@ func (o *Orchestrator) Model() string {
 	return o.llm.Model()
 }
 
+// ToolMode returns the current tool selection mode.
+func (o *Orchestrator) ToolMode() string {
+	return o.toolMode
+}
+
 // SetModel updates the active model.
 func (o *Orchestrator) SetModel(model string) {
 	o.config.LLM.Model = model
 	o.llm.SetModel(model)
+}
+
+// SetToolMode updates the tool selection mode.
+func (o *Orchestrator) SetToolMode(mode string) {
+	o.toolMode = normalizeToolMode(mode)
+	o.config.Serena.ToolMode = o.toolMode
 }
 
 // Reset clears the conversation history while keeping the system prompt.
@@ -404,6 +420,15 @@ func wrapUserTask(userMsg string) string {
 		"<task>\n<request>\n%s\n</request>\n<guidance>\n- Focus on the user's request.\n- For any file system or project action, call tools instead of just describing the action.\n- Ask a clarifying question if the request is ambiguous.\n</guidance>\n</task>",
 		trimmed,
 	)
+}
+
+func normalizeToolMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "heuristic":
+		return "heuristic"
+	default:
+		return "auto"
+	}
 }
 
 func (o *Orchestrator) selectToolChoice(userMsg string) any {

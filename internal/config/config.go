@@ -31,6 +31,7 @@ type SerenaConfig struct {
 	Command     string            `mapstructure:"command"`
 	Args        []string          `mapstructure:"args"`
 	Env         map[string]string `mapstructure:"env"`
+	ToolMode    string            `mapstructure:"tool_mode"`
 }
 
 // LoadOptions controls configuration loading behavior.
@@ -105,6 +106,7 @@ func setDefaults(v *viper.Viper) {
 		"--from", "git+https://github.com/oraios/serena",
 		"serena", "start-mcp-server",
 	})
+	v.SetDefault("serena.tool_mode", "auto")
 	v.SetDefault("debug", false)
 }
 
