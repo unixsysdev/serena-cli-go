@@ -32,6 +32,8 @@ type SerenaConfig struct {
 	Args               []string          `mapstructure:"args"`
 	Env                map[string]string `mapstructure:"env"`
 	ToolTimeoutSeconds int               `mapstructure:"tool_timeout_seconds"`
+	EnableWebDashboard bool              `mapstructure:"enable_web_dashboard"`
+	EnableGuiLogWindow bool              `mapstructure:"enable_gui_log_window"`
 }
 
 // LoadOptions controls configuration loading behavior.
@@ -78,6 +80,8 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.BindEnv("llm.compaction_model", "LLM_COMPACTION_MODEL", "CHUTES_COMPACTION_MODEL")
 	v.BindEnv("llm.timeout_seconds", "LLM_TIMEOUT_SECONDS", "CHUTES_TIMEOUT_SECONDS")
 	v.BindEnv("serena.tool_timeout_seconds", "SERENA_TOOL_TIMEOUT_SECONDS")
+	v.BindEnv("serena.enable_web_dashboard", "SERENA_ENABLE_WEB_DASHBOARD")
+	v.BindEnv("serena.enable_gui_log_window", "SERENA_ENABLE_GUI_LOG_WINDOW")
 
 	// Parse config.
 	var cfg Config
@@ -108,6 +112,8 @@ func setDefaults(v *viper.Viper) {
 		"serena", "start-mcp-server",
 	})
 	v.SetDefault("serena.tool_timeout_seconds", 300)
+	v.SetDefault("serena.enable_web_dashboard", false)
+	v.SetDefault("serena.enable_gui_log_window", false)
 	v.SetDefault("debug", false)
 }
 

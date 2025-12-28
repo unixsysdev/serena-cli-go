@@ -386,11 +386,13 @@ func printConfig(cfg *config.Config) error {
 			"timeout_seconds":  strconv.Itoa(cfg.LLM.TimeoutSeconds),
 		},
 		"serena": map[string]interface{}{
-			"project_path":         cfg.Serena.ProjectPath,
-			"context":              cfg.Serena.Context,
-			"command":              cfg.Serena.Command,
-			"args":                 cfg.Serena.Args,
-			"tool_timeout_seconds": cfg.Serena.ToolTimeoutSeconds,
+			"project_path":          cfg.Serena.ProjectPath,
+			"context":               cfg.Serena.Context,
+			"command":               cfg.Serena.Command,
+			"args":                  cfg.Serena.Args,
+			"tool_timeout_seconds":  cfg.Serena.ToolTimeoutSeconds,
+			"enable_web_dashboard":  cfg.Serena.EnableWebDashboard,
+			"enable_gui_log_window": cfg.Serena.EnableGuiLogWindow,
 		},
 		"debug": cfg.Debug,
 	}

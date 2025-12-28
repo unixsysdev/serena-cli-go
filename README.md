@@ -36,6 +36,8 @@ llm:
 serena:
   command: "uvx"
   tool_timeout_seconds: 300
+  enable_web_dashboard: false
+  enable_gui_log_window: false
   args:
     - "--from"
     - "git+https://github.com/oraios/serena"
@@ -55,6 +57,8 @@ export LLM_MODEL="zai-org/GLM-4.7-TEE"
 export LLM_COMPACTION_MODEL="Qwen/Qwen3-VL-235B-A22B-Instruct"
 export LLM_TIMEOUT_SECONDS="300"
 export SERENA_TOOL_TIMEOUT_SECONDS="300"
+export SERENA_ENABLE_WEB_DASHBOARD="false"
+export SERENA_ENABLE_GUI_LOG_WINDOW="false"
 ```
 
 ## Usage

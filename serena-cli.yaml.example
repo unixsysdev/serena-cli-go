@@ -27,6 +27,10 @@ serena:
   # Max time to wait for tool results before timing out (seconds)
   tool_timeout_seconds: 300
 
+  # Disable Serena's web dashboard and GUI log window (prevents focus steal)
+  enable_web_dashboard: false
+  enable_gui_log_window: false
+
   # Command to start Serena MCP (default: uvx)
   command: "uvx"
 

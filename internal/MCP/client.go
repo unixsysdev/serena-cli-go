@@ -3,6 +3,7 @@ package MCP
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/client"
@@ -33,6 +34,10 @@ func New(cfg *config.SerenaConfig) (*Client, error) {
 	if contextValue != "" {
 		args = append(args, "--context", contextValue)
 	}
+
+	// Suppress dashboard/gui by default unless explicitly overridden.
+	args = appendBoolFlag(args, "--enable-web-dashboard", cfg.EnableWebDashboard)
+	args = appendBoolFlag(args, "--enable-gui-log-window", cfg.EnableGuiLogWindow)
 
 	// Add project path if specified
 	if cfg.ProjectPath != "" {
@@ -135,4 +140,20 @@ func normalizeContext(value string) string {
 	default:
 		return normalized
 	}
+}
+
+func appendBoolFlag(args []string, flag string, value bool) []string {
+	if hasArg(args, flag) {
+		return args
+	}
+	return append(args, flag, strconv.FormatBool(value))
+}
+
+func hasArg(args []string, flag string) bool {
+	for _, arg := range args {
+		if arg == flag {
+			return true
+		}
+	}
+	return false
 }
