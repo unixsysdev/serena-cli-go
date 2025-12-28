@@ -125,11 +125,11 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 
 	fmt.Fprintf(os.Stderr, "Model: %s (use /model to switch)\n", orch.Model())
 	fmt.Fprintf(os.Stderr, "Session: %s (use /session to manage)\n", sessions.Current())
-	fmt.Print("> ")
+	fmt.Print(promptString(cfg, orch, sessions))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
-			fmt.Print("> ")
+			fmt.Print(promptString(cfg, orch, sessions))
 			continue
 		}
 		if strings.HasPrefix(line, "@context") {
@@ -138,7 +138,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			} else {
 				fmt.Println("Context file added.")
 			}
-			fmt.Print("> ")
+			fmt.Print(promptString(cfg, orch, sessions))
 			continue
 		}
 		if strings.HasPrefix(line, "/") {
@@ -149,7 +149,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 			if exit {
 				return nil
 			}
-			fmt.Print("> ")
+			fmt.Print(promptString(cfg, orch, sessions))
 			continue
 		}
 		if line == "exit" || line == "quit" {
@@ -167,7 +167,7 @@ func runREPL(ctx context.Context, orch *orchestrator.Orchestrator, cfg *config.C
 		}
 
 		fmt.Println(resp)
-		fmt.Print("> ")
+		fmt.Print(promptString(cfg, orch, sessions))
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -336,7 +336,11 @@ func printStatus(orch *orchestrator.Orchestrator, cfg *config.Config, sessions *
 		fmt.Printf("Compaction model: %s\n", cfg.LLM.CompactionModel)
 	}
 	fmt.Printf("Project: %s\n", cfg.Serena.ProjectPath)
-	fmt.Printf("Context: %s\n", cfg.Serena.Context)
+	contextLabel := cfg.Serena.Context
+	if strings.TrimSpace(contextLabel) == "" {
+		contextLabel = "(auto)"
+	}
+	fmt.Printf("Context: %s\n", contextLabel)
 	fmt.Printf("Tools loaded: %d\n", len(orch.Tools()))
 	fmt.Printf("Session: %s\n", sessions.Current())
 	fmt.Printf("Approx tokens: %d / %d (%.1f%%)\n", stats.ApproxTokens, contextLimitTokens, percent)
@@ -649,6 +653,40 @@ func formatDuration(d time.Duration) string {
 		return d.Round(time.Millisecond).String()
 	}
 	return d.Round(10 * time.Millisecond).String()
+}
+
+func promptString(cfg *config.Config, orch *orchestrator.Orchestrator, sessions *SessionState) string {
+	project := cfg.Serena.ProjectPath
+	if strings.TrimSpace(project) == "" || project == "." {
+		if cwd, err := os.Getwd(); err == nil {
+			project = cwd
+		}
+	}
+	if project != "" {
+		project = filepath.Base(project)
+	}
+	if project == "" {
+		project = "serena"
+	}
+
+	model := shortModelName(orch.Model())
+	sessionName := sessions.Current()
+	if sessionName == "" {
+		sessionName = "default"
+	}
+
+	return fmt.Sprintf("serena:%s (%s) [%s] > ", project, sessionName, model)
+}
+
+func shortModelName(model string) string {
+	trimmed := strings.TrimSpace(model)
+	if trimmed == "" {
+		return "model"
+	}
+	if idx := strings.LastIndex(trimmed, "/"); idx >= 0 && idx < len(trimmed)-1 {
+		return trimmed[idx+1:]
+	}
+	return trimmed
 }
 
 func handleContextImport(line string, orch *orchestrator.Orchestrator, sessions *SessionState) error {

@@ -33,8 +33,6 @@ llm:
   compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
 serena:
-  context: "claude-desktop"
-  project_path: "."
   command: "uvx"
   args:
     - "--from"
@@ -43,7 +41,8 @@ serena:
     - "start-mcp-server"
 ```
 
-Note: `claude-desktop` is normalized to Serena's `desktop-app` context.
+Optional: set `serena.context` or `serena.project_path` if you want to force them;
+leaving them empty lets Serena manage context and project activation.
 
 Or set environment variables:
 

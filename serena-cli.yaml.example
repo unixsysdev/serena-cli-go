@@ -15,11 +15,11 @@ llm:
   compaction_model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
 serena:
-  # Project path (use "." for current directory)
-  project_path: "."
+  # Project path (optional; leave empty to manage projects in Serena itself)
+  # project_path: ""
 
-  # Context mode: claude-desktop (mapped to desktop-app), ide, desktop-app, etc.
-  context: "claude-desktop"
+  # Context mode (optional; leave empty to let Serena decide)
+  # context: ""
 
   # Command to start Serena MCP (default: uvx)
   command: "uvx"

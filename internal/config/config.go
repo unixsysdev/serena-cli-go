@@ -99,7 +99,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.base_url", "https://llm.chutes.ai/v1")
 	v.SetDefault("llm.model", "zai-org/GLM-4.7-TEE")
 	v.SetDefault("llm.compaction_model", "Qwen/Qwen3-VL-235B-A22B-Instruct")
-	v.SetDefault("serena.context", "claude-desktop")
+	v.SetDefault("serena.context", "")
 	v.SetDefault("serena.command", "uvx")
 	v.SetDefault("serena.args", []string{
 		"--from", "git+https://github.com/oraios/serena",
