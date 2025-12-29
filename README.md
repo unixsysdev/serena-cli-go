@@ -4,7 +4,7 @@ A lean coding assistant powered by Chutes-hosted LLMs and Serena MCP.
 
 ## Features
 
-- 🚀 Powered by Chutes-hosted LLMs
+- 🚀 Powered by any OpenAI compatible endpoint
 - 🛠️ Full Serena MCP tool integration
 - ⚡ Fast compiled Go binary
 - 🔧 Configuration management
