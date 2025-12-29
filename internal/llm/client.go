@@ -28,7 +28,7 @@ func New(cfg *config.LLMConfig) (*Client, error) {
 	httpClient := &http.Client{
 		Transport: &userAgentTransport{
 			RoundTripper: http.DefaultTransport,
-			UserAgent:    "kilo-code/0.1.0",
+			UserAgent:    "serena-cli-go/0.1.0",
 		},
 	}
 	if cfg.TimeoutSeconds > 0 {
