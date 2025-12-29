@@ -513,7 +513,11 @@ func (ui *ConsoleUI) handleToolStart(name string, args string) {
 	ui.mu.Lock()
 	defer ui.mu.Unlock()
 
+	hadSpinner := ui.spinnerStop != nil
 	ui.stopSpinnerLocked()
+	if hadSpinner {
+		fmt.Fprintln(ui.out)
+	}
 
 	event := &ToolEvent{
 		Name:    name,
