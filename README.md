@@ -1,6 +1,6 @@
 # Serena CLI - Go Edition
 
-A lean coding assistant powered by Chutes-hosted LLMs and Serena MCP.
+A lean coding assistant powered by OpenAI compatible inference endpoints LLMs and Serena MCP.
 
 ## Features
 
